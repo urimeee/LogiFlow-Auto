@@ -5,6 +5,11 @@
 **목적**: 물류 현장에서 발생하는 제각각인 엑셀/CSV 데이터를 하나로 통합  
 **기술 스택**: Python, Streamlit, Pandas, OpenPyXL, XlsxWriter
 
+## 🌐 웹 애플리케이션 URL
+**실행 중인 서비스**: https://3000-ip2l928h0vug305w91va9-d0b9e1e2.sandbox.novita.ai
+
+위 URL로 접속하여 바로 사용하실 수 있습니다!
+
 ## 주요 기능
 
 ### ✨ 핵심 기능
@@ -30,6 +35,22 @@
 
 ## 사용 방법
 
+### 웹 사용 (추천)
+
+1. **웹 사이트 접속**
+   - URL: https://3000-ip2l928h0vug305w91va9-d0b9e1e2.sandbox.novita.ai
+
+2. **파일 업로드**
+   - 여러 엑셀/CSV 파일을 한 번에 선택하여 업로드
+
+3. **자동 처리**
+   - 파일이 자동으로 분석되고 컬럼이 표준화됨
+   - 통합된 데이터 미리보기 확인
+
+4. **다운로드**
+   - "통합 파일 다운로드" 버튼 클릭
+   - `YYYYMMDD_배송업무.xlsx` 파일 저장
+
 ### 로컬 실행
 
 1. **의존성 설치**
@@ -46,13 +67,24 @@ streamlit run app.py
 3. **브라우저에서 접속**
 - 자동으로 브라우저가 열림 (보통 http://localhost:8501)
 
-### 사용 절차
+## 사용 예시
 
-1. 웹 페이지에서 여러 엑셀/CSV 파일을 업로드
-2. 자동으로 파일이 분석되고 컬럼이 표준화됨
-3. 통합된 데이터 미리보기 확인
-4. "통합 파일 다운로드" 버튼 클릭
-5. `YYYYMMDD_배송업무.xlsx` 파일 저장
+### 처리 가능한 파일 종류
+- ✅ 스마트스토어 발주서 (Excel/CSV)
+- ✅ 외부 배송정보 CSV
+- ✅ 내부 DeliveryList (Excel)
+- ✅ 쇼핑몰 Orders 파일 (Excel/CSV)
+
+### 처리 흐름
+```
+1. 스마트스토어_발주서.xlsx (컬럼: 받는분.이름, 받는분.전화번호...)
+2. 배송정보.csv (컬럼: 수령인, 핸드폰, 주소...)
+3. DeliveryList.xlsx (컬럼: 주문자, 사용자.전화번호...)
+                ↓
+      [자동 컬럼 표준화 및 통합]
+                ↓
+    20260131_배송업무.xlsx (표준 컬럼으로 통일)
+```
 
 ## 지원 파일 형식
 
@@ -69,10 +101,11 @@ streamlit run app.py
 
 ```
 webapp/
-├── app.py                 # 메인 Streamlit 애플리케이션
-├── requirements.txt       # Python 패키지 의존성
-├── .gitignore            # Git 제외 파일 목록
-└── README.md             # 프로젝트 문서
+├── app.py                    # 메인 Streamlit 애플리케이션
+├── requirements.txt          # Python 패키지 의존성
+├── ecosystem.config.cjs      # PM2 설정 파일
+├── .gitignore               # Git 제외 파일 목록
+└── README.md                # 프로젝트 문서
 ```
 
 ## 기술 세부사항
@@ -100,6 +133,29 @@ webapp/
 4. 저장소 연결 및 `app.py` 지정
 5. Deploy 클릭
 
+### PM2를 사용한 로컬 서버 운영
+
+```bash
+# PM2로 서비스 시작
+pm2 start ecosystem.config.cjs
+
+# PM2 상태 확인
+pm2 list
+
+# 로그 확인
+pm2 logs logistics-app --nostream
+
+# 재시작
+fuser -k 3000/tcp 2>/dev/null || true
+pm2 restart logistics-app
+
+# 중지
+pm2 stop logistics-app
+
+# 삭제
+pm2 delete logistics-app
+```
+
 ## 트러블슈팅
 
 ### CSV 파일이 깨져서 보이는 경우
@@ -107,12 +163,36 @@ webapp/
 - 그래도 안 되면 메모장에서 UTF-8로 저장 후 재시도
 
 ### 특정 컬럼이 인식되지 않는 경우
-- `COLUMN_MAPPING` 딕셔너리에 해당 컬럼명 추가
-- `app.py` 파일 수정 후 재실행
+- `app.py`의 `COLUMN_MAPPING` 딕셔너리에 해당 컬럼명 추가
+- 파일 수정 후 서비스 재시작
 
 ### 메모리 부족 오류
 - 파일 크기가 너무 큰 경우 발생 가능
 - 파일을 여러 개로 나누어 처리
+
+### 웹 사이트 접속 안 됨
+- PM2 서비스 상태 확인: `pm2 list`
+- 포트 3000 확인: `fuser -k 3000/tcp`
+- 서비스 재시작: `pm2 restart logistics-app`
+
+## 완료된 기능
+✅ 다중 파일 업로드 기능  
+✅ 8가지 표준 컬럼 자동 매핑  
+✅ 한글 인코딩 자동 감지 (UTF-8, CP949, EUC-KR)  
+✅ Excel/CSV 파일 읽기  
+✅ 데이터 통합 및 병합  
+✅ 날짜별 파일명 생성 (YYYYMMDD_배송업무.xlsx)  
+✅ 엑셀 파일 스타일링 (헤더, 열 너비 자동 조정)  
+✅ 실시간 데이터 미리보기  
+✅ 파일 다운로드 기능  
+✅ 웹 인터페이스 구축  
+
+## 추천 다음 단계
+1. **사용자 설정 기능**: 컬럼 매핑 규칙을 웹에서 직접 수정
+2. **데이터 검증**: 필수 필드 확인 및 오류 데이터 표시
+3. **통계 대시보드**: 지역별, 상품별 배송 통계
+4. **템플릿 저장**: 자주 사용하는 매핑 규칙 저장
+5. **배치 처리**: 대용량 파일 처리 최적화
 
 ## 라이선스
 MIT License
@@ -126,3 +206,5 @@ MIT License
   - 자동 컬럼 매핑
   - 한글 인코딩 자동 감지
   - 엑셀 파일 생성 및 다운로드
+  - 웹 인터페이스 구축
+  - PM2 배포 설정
