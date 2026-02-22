@@ -68,7 +68,7 @@ def match_product_code(row, master_df, cafe24_code_col, cafe24_name_col, cafe24_
     카페24 주문 데이터와 마스터 코드 매칭
     
     매칭 우선순위:
-    1. 쇼핑몰 상품 코드 정확 매칭
+    1. 판매 상품 코드 정확 매칭 (자체품목코드 == 판매 상품 코드)
     2. 상품명 + 옵션명 조합 매칭
     3. 유사도 기반 추천
     """
@@ -76,9 +76,9 @@ def match_product_code(row, master_df, cafe24_code_col, cafe24_name_col, cafe24_
     cafe24_name = row.get(cafe24_name_col, None)
     cafe24_option = row.get(cafe24_option_col, None)
     
-    # 1단계: 쇼핑몰 상품 코드로 정확 매칭
+    # 1단계: 판매 상품 코드로 정확 매칭 (카페24 자체품목코드 == 마스터 판매 상품 코드)
     if pd.notna(cafe24_code):
-        exact_match = master_df[master_df['쇼핑몰 상품 코드'] == cafe24_code]
+        exact_match = master_df[master_df['판매 상품 코드'] == cafe24_code]
         if not exact_match.empty:
             matched = exact_match.iloc[0]
             return {
