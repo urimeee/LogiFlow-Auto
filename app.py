@@ -13,6 +13,14 @@ st.set_page_config(
     layout="wide"
 )
 
+# 플랫폼 이름 매핑 (영문 → 한글)
+PLATFORM_NAME_MAP = {
+    'cafe24': '카페24',
+    'app': '앱',
+    'coupang': '쿠팡',
+    'naver': '네이버'
+}
+
 # 컬럼 매핑 규칙 정의
 COLUMN_MAPPING = {
     '주문번호': ['주문번호', '쇼핑몰번호'],
@@ -121,7 +129,9 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
     """
     # 플랫폼별 마스터 데이터 필터링
     if platform in ['cafe24', 'coupang', 'naver', 'app']:
-        platform_master = master_df[master_df['판매처'] == platform].copy()
+        # 영문 플랫폼 이름을 한글로 변환
+        korean_platform_name = PLATFORM_NAME_MAP.get(platform, platform)
+        platform_master = master_df[master_df['판매처'] == korean_platform_name].copy()
     else:
         platform_master = master_df
     
