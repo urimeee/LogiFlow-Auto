@@ -548,11 +548,9 @@ def create_excel_file(df):
 
 
 # Streamlit UI
-
-# Streamlit UI
 def main():
-    st.title("📦 물류 데이터 통합 시스템 v3.0")
-    st.markdown("**모든 플랫폼 동시 처리**: 카페24, 앱, 쿠팡, 네이버를 한 번에!")
+    st.title("📦 물류 데이터 통합 시스템 v3.1")
+    st.markdown("**플랫폼별 파일 업로드**: 카페24, 앱, 쿠팡, 네이버를 명확히 구분!")
     st.markdown("---")
     
     # 사이드바 - 마스터 파일 업로드
@@ -562,7 +560,8 @@ def main():
         master_file = st.file_uploader(
             "📁 물류_코드명.xlsx 파일 업로드",
             type=['xlsx', 'xls'],
-            help="판매 상품 코드 매칭을 위한 마스터 데이터"
+            help="판매 상품 코드 매칭을 위한 마스터 데이터",
+            key="master_file"
         )
         
         if master_file:
@@ -575,217 +574,212 @@ def main():
                 st.header("📊 마스터 데이터 현황")
                 platform_counts = master_df['판매처'].value_counts()
                 for platform, count in platform_counts.items():
-                    st.metric(f"{platform.upper()}", f"{count}개 상품")
+                    st.metric(platform, f"{count}개 상품")
         else:
             master_df = st.session_state.get('master_df', None)
         
         st.markdown("---")
-        st.info("💡 **사용 방법**\n\n1. 마스터 코드 업로드\n2. 모든 플랫폼 파일 업로드\n3. 자동 처리 확인\n4. 통합 파일 다운로드")
+        st.info("💡 **사용 방법**\n\n1. 마스터 코드 업로드\n2. 플랫폼별 파일 업로드\n3. 자동 매칭 확인\n4. 통합 파일 다운로드")
     
-    # 메인 영역
-    st.header("1️⃣ 파일 업로드 (모든 플랫폼)")
+    # 메인 영역 - 플랫폼별 파일 업로더
+    st.header("1️⃣ 플랫폼별 파일 업로드")
     
-    uploaded_files = st.file_uploader(
-        "📁 카페24, 앱, 쿠팡, 네이버 파일을 모두 선택하세요",
-        type=['csv', 'xlsx', 'xls'],
-        accept_multiple_files=True,
-        help="여러 플랫폼의 파일을 한 번에 업로드할 수 있습니다"
-    )
+    # 플랫폼별 탭 생성
+    tab1, tab2, tab3, tab4 = st.tabs(["📦 카페24", "📱 앱", "🛒 쿠팡", "🟢 네이버"])
     
-    if uploaded_files:
-        st.success(f"✅ {len(uploaded_files)}개 파일 업로드됨")
-        
-        # 플랫폼별 파일 자동 분류
-        platform_files = {
-            'cafe24': [],
-            'app': [],
-            'coupang': [],
-            'naver': [],
-            'unknown': []
-        }
-        
-        file_platform_map = {}
-        
-        for f in uploaded_files:
-            df_temp = read_file(f)
-            if df_temp is not None:
-                platform = detect_platform(df_temp)
-                platform_files[platform].append(f.name)
-                file_platform_map[f.name] = platform
-        
-        # 분류 결과 표시
-        st.markdown("---")
-        st.header("📱 플랫폼별 파일 분류")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("📱 카페24", len(platform_files['cafe24']))
-            for fname in platform_files['cafe24']:
-                st.caption(f"✓ {fname}")
-        
-        with col2:
-            st.metric("📱 앱", len(platform_files['app']))
-            for fname in platform_files['app']:
-                st.caption(f"✓ {fname}")
-        
-        with col3:
-            st.metric("🛒 쿠팡", len(platform_files['coupang']))
-            for fname in platform_files['coupang']:
-                st.caption(f"✓ {fname}")
-        
-        with col4:
-            st.metric("🛍️ 네이버", len(platform_files['naver']))
-            for fname in platform_files['naver']:
-                st.caption(f"✓ {fname}")
-        
-        if platform_files['unknown']:
-            st.warning(f"⚠️ 알 수 없는 파일 {len(platform_files['unknown'])}개: {', '.join(platform_files['unknown'])}")
-        
-        # 파일 처리
-        st.markdown("---")
-        st.header("2️⃣ 파일 처리 및 매칭")
-        
-        master_df = st.session_state.get('master_df', None)
-        if master_df is None:
-            st.error("❌ 마스터 코드 파일을 먼저 업로드해주세요!")
-            return
-        
-        processed_dfs = []
-        file_info = []
-        
-        with st.spinner("모든 플랫폼 파일을 처리하는 중..."):
-            for uploaded_file in uploaded_files:
+    uploaded_files_map = {}
+    
+    with tab1:
+        st.subheader("카페24 주문 파일")
+        st.subheader("카페24 주문 파일")
+        cafe24_files = st.file_uploader(
+            "카페24 CSV 파일을 업로드하세요",
+            type=['csv', 'xlsx', 'xls'],
+            accept_multiple_files=True,
+            key="cafe24_files"
+        )
+        if cafe24_files:
+            uploaded_files_map['cafe24'] = cafe24_files
+            st.success(f"✅ {len(cafe24_files)}개 파일 업로드됨")
+    
+    with tab2:
+        st.subheader("앱 주문 파일")
+        app_files = st.file_uploader(
+            "앱 CSV 파일을 업로드하세요",
+            type=['csv', 'xlsx', 'xls'],
+            accept_multiple_files=True,
+            key="app_files"
+        )
+        if app_files:
+            uploaded_files_map['app'] = app_files
+            st.success(f"✅ {len(app_files)}개 파일 업로드됨")
+    
+    with tab3:
+        st.subheader("쿠팡 주문 파일")
+        coupang_files = st.file_uploader(
+            "쿠팡 XLSX/CSV 파일을 업로드하세요",
+            type=['csv', 'xlsx', 'xls'],
+            accept_multiple_files=True,
+            key="coupang_files"
+        )
+        if coupang_files:
+            uploaded_files_map['coupang'] = coupang_files
+            st.success(f"✅ {len(coupang_files)}개 파일 업로드됨")
+    
+    with tab4:
+        st.subheader("네이버 주문 파일")
+        naver_files = st.file_uploader(
+            "네이버 CSV/XLSX 파일을 업로드하세요",
+            type=['csv', 'xlsx', 'xls'],
+            accept_multiple_files=True,
+            key="naver_files"
+        )
+        if naver_files:
+            uploaded_files_map['naver'] = naver_files
+            st.success(f"✅ {len(naver_files)}개 파일 업로드됨")
+    
+    # 업로드된 파일이 있는지 확인
+    if not uploaded_files_map:
+        st.info("👆 위 탭에서 플랫폼별 파일을 업로드해주세요")
+        return
+    
+    # 마스터 파일 확인
+    master_df = st.session_state.get('master_df', None)
+    if master_df is None:
+        st.error("❌ 사이드바에서 마스터 코드 파일을 먼저 업로드해주세요!")
+        return
+    
+    # 파일 처리
+    st.markdown("---")
+    st.header("2️⃣ 파일 처리 및 매칭")
+    
+    processed_dfs = []
+    file_info = []
+    
+    with st.spinner("모든 플랫폼 파일을 처리하는 중..."):
+        for platform, files in uploaded_files_map.items():
+            for uploaded_file in files:
                 df = read_file(uploaded_file)
                 
                 if df is not None:
-                    platform = file_platform_map.get(uploaded_file.name, 'unknown')
-                    
-                    if platform in ['cafe24', 'app', 'coupang', 'naver']:
-                        converted_df = convert_to_3pl_format(df, master_df, platform)
-                        if converted_df is not None:
-                            processed_dfs.append(converted_df)
-                            
-                            matched = (converted_df['매칭 방법'] != '매칭 실패').sum()
-                            need_check = converted_df['확인 필요'].sum()
-                            
-                            file_info.append({
-                                '플랫폼': platform.upper(),
-                                '파일명': uploaded_file.name,
-                                '원본 행 수': len(df),
-                                '매칭 성공': f"{matched}/{len(converted_df)}",
-                                '확인 필요': need_check
-                            })
-                    else:
-                        st.warning(f"⚠️ {uploaded_file.name}: 알 수 없는 플랫폼")
+                    converted_df = convert_to_3pl_format(df, master_df, platform)
+                    if converted_df is not None:
+                        processed_dfs.append(converted_df)
+                        
+                        matched = (converted_df['매칭 방법'] != '매칭 실패').sum()
+                        need_check = converted_df['확인 필요'].sum()
+                        
+                        file_info.append({
+                            '플랫폼': platform.upper(),
+                            '파일명': uploaded_file.name,
+                            '원본 행 수': len(df),
+                            '매칭 성공': f"{matched}/{len(converted_df)}",
+                            '확인 필요': need_check
+                        })
+    
+    # 파일 정보 테이블 표시
+    if file_info:
+        st.subheader("📄 처리된 파일 정보")
+        info_df = pd.DataFrame(file_info)
+        st.dataframe(info_df, use_container_width=True)
+    
+    # 데이터 통합
+    if processed_dfs:
+        st.markdown("---")
+        st.header("3️⃣ 데이터 통합 결과")
         
-        # 파일 정보 테이블 표시
-        if file_info:
-            st.subheader("📄 처리된 파일 정보")
-            info_df = pd.DataFrame(file_info)
-            st.dataframe(info_df, use_container_width=True)
+        merged_df = pd.concat(processed_dfs, ignore_index=True)
         
-        # 데이터 통합
-        if processed_dfs:
-            st.markdown("---")
-            st.header("3️⃣ 데이터 통합 결과")
-            
-            merged_df = pd.concat(processed_dfs, ignore_index=True)
-            
-            # 모든 컬럼을 문자열로 변환 (Arrow 변환 오류 방지)
-            for col in merged_df.columns:
-                merged_df[col] = merged_df[col].astype(str).replace('nan', '')
-                merged_df[col] = merged_df[col].replace('None', '')
-                merged_df[col] = merged_df[col].replace('<NA>', '')
-            
-            # 통계 정보
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("총 주문 수", len(merged_df))
-            with col2:
-                matched = (merged_df['매칭 방법'] != '매칭 실패').sum()
-                st.metric("매칭 성공", f"{matched}/{len(merged_df)}")
-            with col3:
-                need_confirm = merged_df['확인 필요'].sum()
-                st.metric("확인 필요", need_confirm)
-            with col4:
-                platforms = merged_df['플랫폼'].nunique()
-                st.metric("처리 플랫폼", f"{platforms}개")
-            
-            # 플랫폼별 통계
-            st.subheader("📊 플랫폼별 통계")
-            platform_stats = merged_df.groupby('플랫폼').agg({
-                '주문번호': 'count',
-                '확인 필요': 'sum'
-            }).rename(columns={'주문번호': '주문 수', '확인 필요': '확인 필요 항목'})
-            st.dataframe(platform_stats, use_container_width=True)
-            
-            # 매칭 방법별 통계
-            st.subheader("🔍 매칭 결과 분석")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("**매칭 방법별 통계:**")
-                method_counts = merged_df['매칭 방법'].value_counts()
-                st.dataframe(method_counts, use_container_width=True)
-            
-            with col2:
-                st.markdown("**확인 필요 항목:**")
-                need_check = merged_df[merged_df['확인 필요'] == True]
-                if not need_check.empty:
-                    st.warning(f"⚠️ {len(need_check)}개 항목 확인 필요")
-                    with st.expander("확인 필요 항목 보기"):
-                        st.dataframe(need_check[['플랫폼', '주문번호', '쇼핑몰 상품 이름', '매칭 방법']], use_container_width=True)
-                else:
-                    st.success("✅ 모든 항목이 정확히 매칭되었습니다!")
-            
-            # 미리보기
-            st.subheader("📊 통합 데이터 미리보기")
-            
-            # 확인 필요 항목 필터
-            show_filter = st.checkbox("⚠️ 확인 필요 항목만 보기")
-            if show_filter:
-                display_df = merged_df[merged_df['확인 필요'] == True]
+        # 모든 컬럼을 문자열로 변환 (Arrow 변환 오류 방지)
+        for col in merged_df.columns:
+            merged_df[col] = merged_df[col].astype(str).replace('nan', '')
+            merged_df[col] = merged_df[col].replace('None', '')
+            merged_df[col] = merged_df[col].replace('<NA>', '')
+        
+        # 통계 정보
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("총 주문 수", len(merged_df))
+        with col2:
+            matched = (merged_df['매칭 방법'] != '매칭 실패').sum()
+            st.metric("매칭 성공", f"{matched}/{len(merged_df)}")
+        with col3:
+            need_confirm = merged_df['확인 필요'].sum()
+            st.metric("확인 필요", need_confirm)
+        with col4:
+            platforms = merged_df['플랫폼'].nunique()
+            st.metric("처리 플랫폼", f"{platforms}개")
+        
+        # 플랫폼별 통계
+        st.subheader("📊 플랫폼별 통계")
+        platform_stats = merged_df.groupby('플랫폼').agg({
+            '주문번호': 'count',
+            '확인 필요': 'sum'
+        }).rename(columns={'주문번호': '주문 수', '확인 필요': '확인 필요 항목'})
+        st.dataframe(platform_stats, use_container_width=True)
+        
+        # 매칭 방법별 통계
+        st.subheader("🔍 매칭 결과 분석")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**매칭 방법별 통계:**")
+            method_counts = merged_df['매칭 방법'].value_counts()
+            st.dataframe(method_counts, use_container_width=True)
+        
+        with col2:
+            st.markdown("**확인 필요 항목:**")
+            need_check = merged_df[merged_df['확인 필요'] == 'True']
+            if not need_check.empty:
+                st.warning(f"⚠️ {len(need_check)}개 항목 확인 필요")
+                with st.expander("확인 필요 항목 보기"):
+                    st.dataframe(need_check[['플랫폼', '주문번호', '쇼핑몰 상품 이름', '매칭 방법']], use_container_width=True)
             else:
-                display_df = merged_df
-            
-            st.dataframe(display_df.head(50), use_container_width=True)
-            
-            # 다운로드
-            st.markdown("---")
-            st.header("4️⃣ 파일 다운로드")
-            
-            # 오늘 날짜로 파일명 생성
-            today = datetime.now().strftime("%Y%m%d")
-            filename = f"{today}_통합3PL배송업무.xlsx"
-            
-            # 엑셀 파일 생성
-            excel_file = create_excel_file(merged_df)
-            
-            # 다운로드 버튼
-            st.download_button(
-                label="📥 통합 3PL 배송 파일 다운로드",
-                data=excel_file,
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary",
-                use_container_width=True
-            )
-            
-            st.success(f"✅ **{filename}** 파일이 준비되었습니다!")
-            
-            if merged_df['확인 필요'].sum() > 0:
-                st.warning("⚠️ 다운로드한 파일에서 노란색으로 표시된 항목을 확인해주세요!")
+                st.success("✅ 모든 항목이 정확히 매칭되었습니다!")
+        
+        # 데이터 미리보기
+        st.markdown("---")
+        st.header("4️⃣ 데이터 미리보기")
+        
+        # 필터 옵션
+        show_only_need_check = st.checkbox("확인 필요 항목만 보기")
+        
+        if show_only_need_check:
+            display_df = merged_df[merged_df['확인 필요'] == 'True']
+            st.info(f"📋 확인 필요 항목: {len(display_df)}건")
         else:
-            st.warning("⚠️ 처리된 파일이 없습니다.")
+            display_df = merged_df
+            st.info(f"📋 전체 데이터: {len(display_df)}건")
+        
+        st.dataframe(display_df, use_container_width=True)
+        
+        # 다운로드 버튼
+        st.markdown("---")
+        st.header("5️⃣ 파일 다운로드")
+        
+        today = datetime.now().strftime("%Y%m%d")
+        filename = f"{today}_통합3PL배송업무.xlsx"
+        
+        excel_file = create_excel_file(merged_df)
+        
+        st.download_button(
+            label="📥 통합 파일 다운로드",
+            data=excel_file,
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        
+        st.success(f"✅ {filename} 파일이 준비되었습니다!")
+        
+        if need_confirm > 0:
+            st.warning(f"⚠️ 다운로드한 파일에서 '확인 필요' 컬럼이 True인 {need_confirm}개 항목을 수동으로 확인해주세요.")
+    
+    else:
+        st.error("❌ 처리된 데이터가 없습니다. 파일 형식을 확인해주세요.")
     
     # 푸터
     st.markdown("---")
-    st.markdown("""
-    <div style='text-align: center; color: gray;'>
-        <small>물류 데이터 통합 시스템 v3.0 | 모든 플랫폼 동시 처리 지원</small>
-    </div>
-    """, unsafe_allow_html=True)
+    st.caption("물류 데이터 통합 시스템 v3.1 | 플랫폼별 명확한 파일 업로드")
 
 
 if __name__ == "__main__":
