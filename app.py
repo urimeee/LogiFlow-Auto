@@ -120,7 +120,22 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
     3. 유사도 기반 추천
     """
     # 플랫폼별 마스터 데이터 필터링
-    platform_master = master_df[master_df['판매처'] == platform].copy() if platform in ['cafe24', 'coupang', 'naver', 'app'] else master_df
+    if platform in ['cafe24', 'coupang', 'naver', 'app']:
+        platform_master = master_df[master_df['판매처'] == platform].copy()
+    else:
+        platform_master = master_df
+    
+    # 마스터 데이터가 없으면 즉시 매칭 실패 반환
+    if platform_master.empty:
+        return {
+            '플랫폼': platform,
+            '판매 상품 코드': None,
+            '쇼핑몰 상품 코드': None,
+            '쇼핑몰 상품 이름': None,
+            '쇼핑몰 옵션 이름': None,
+            '매칭 방법': f'매칭 실패 (마스터 데이터 없음)',
+            '확인 필요': True
+        }
     
     # 플랫폼별 코드 추출
     if platform == 'cafe24':
