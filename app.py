@@ -28,14 +28,14 @@ COLUMN_MAPPING = {
 # 3PL 전용 컬럼 매핑 (카페24 전용)
 CAFE24_TO_3PL_MAPPING = {
     '주문번호': '주문번호',
-    '수취인 명': '받는사람',
-    '수취인 핸드폰': '수령인휴대폰',
-    '수취인 기본 주소': '배송주소',
-    '쇼핑몰 상품 코드': '자체품목코드',
-    '쇼핑몰 상품 이름': '상품명',
-    '쇼핑몰 옵션 이름': '옵션',
+    '수취인 명': ['수령인', '받는사람', '주문자'],
+    '수취인 핸드폰': ['핸드폰', '수령인휴대폰', '주문자핸드폰'],
+    '수취인 기본 주소': ['주소', '배송주소', '주문자주소'],
+    '쇼핑몰 상품 코드': None,  # 매칭 결과에서 가져옴
+    '쇼핑몰 상품 이름': None,  # 매칭 결과에서 가져옴
+    '쇼핑몰 옵션 이름': None,  # 매칭 결과에서 가져옴
     '주문 수량': '수량',
-    '배송 메세지': '배송메세지'
+    '배송 메세지': ['비고', '배송메세지', '요청사항']
 }
 
 
@@ -190,20 +190,44 @@ def convert_to_3pl_format(df, master_df, is_cafe24=False):
         # 3PL 표준 양식으로 재구성
         output_df = pd.DataFrame()
         
-        # 컬럼 매핑
-        for target_col, source_col in CAFE24_TO_3PL_MAPPING.items():
-            if source_col in result_df.columns:
-                output_df[target_col] = result_df[source_col]
-            elif source_col in match_df.columns:
-                output_df[target_col] = match_df[source_col]
-            else:
-                # 기존 매핑 시스템 활용
-                for standard_col, variants in COLUMN_MAPPING.items():
-                    if target_col in variants or standard_col == target_col:
-                        for variant in variants:
-                            if variant in result_df.columns:
-                                output_df[target_col] = result_df[variant]
-                                break
+        # 1. 주문번호
+        output_df['주문번호'] = result_df['주문번호']
+        
+        # 2. 수취인 명
+        for col in ['수령인', '받는사람', '주문자']:
+            if col in result_df.columns:
+                output_df['수취인 명'] = result_df[col]
+                break
+        
+        # 3. 수취인 핸드폰
+        for col in ['핸드폰', '수령인휴대폰', '주문자핸드폰']:
+            if col in result_df.columns:
+                output_df['수취인 핸드폰'] = result_df[col]
+                break
+        
+        # 4. 수취인 기본 주소
+        for col in ['주소', '배송주소', '주문자주소']:
+            if col in result_df.columns:
+                output_df['수취인 기본 주소'] = result_df[col]
+                break
+        
+        # 5. 쇼핑몰 상품 코드 (매칭 결과에서)
+        output_df['쇼핑몰 상품 코드'] = match_df['쇼핑몰 상품 코드']
+        
+        # 6. 쇼핑몰 상품 이름 (매칭 결과에서)
+        output_df['쇼핑몰 상품 이름'] = match_df['쇼핑몰 상품 이름']
+        
+        # 7. 쇼핑몰 옵션 이름 (매칭 결과에서)
+        output_df['쇼핑몰 옵션 이름'] = match_df['쇼핑몰 옵션 이름']
+        
+        # 8. 주문 수량
+        output_df['주문 수량'] = result_df['수량']
+        
+        # 9. 배송 메세지
+        for col in ['비고', '배송메세지', '요청사항']:
+            if col in result_df.columns:
+                output_df['배송 메세지'] = result_df[col]
+                break
         
         # 매칭 정보 추가
         output_df['매칭 방법'] = match_df['매칭 방법']
