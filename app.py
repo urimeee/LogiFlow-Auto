@@ -682,6 +682,12 @@ def main():
             
             merged_df = pd.concat(processed_dfs, ignore_index=True)
             
+            # 모든 컬럼을 문자열로 변환 (Arrow 변환 오류 방지)
+            for col in merged_df.columns:
+                merged_df[col] = merged_df[col].astype(str).replace('nan', '')
+                merged_df[col] = merged_df[col].replace('None', '')
+                merged_df[col] = merged_df[col].replace('<NA>', '')
+            
             # 통계 정보
             col1, col2, col3, col4 = st.columns(4)
             with col1:
