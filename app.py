@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import io
 import chardet
+import msoffcrypto
 
 # 페이지 설정
 st.set_page_config(
@@ -56,9 +57,87 @@ def read_file(uploaded_file):
             return None
             
         elif file_extension in ['xlsx', 'xls']:
-            df = pd.read_excel(uploaded_file)
-            st.success(f"✅ {uploaded_file.name} 파일 읽기 완료")
-            return df
+            # 엑셀 파일 읽기 (암호화/보호 파일 처리 포함)
+            file_bytes = uploaded_file.read()
+            
+            # 1단계: 일반 엑셀 파일로 읽기 시도 (openpyxl 엔진)
+            try:
+                df = pd.read_excel(io.BytesIO(file_bytes), engine='openpyxl')
+                st.success(f"✅ {uploaded_file.name} 파일 읽기 완료 (XLSX)")
+                return df
+            except Exception as e1:
+                # 2단계: XLS 형식으로 읽기 시도 (xlrd 엔진)
+                try:
+                    df = pd.read_excel(io.BytesIO(file_bytes), engine='xlrd')
+                    st.success(f"✅ {uploaded_file.name} 파일 읽기 완료 (XLS)")
+                    return df
+                except Exception as e2:
+                    # 3단계: 암호화된 파일 복호화 시도
+                    try:
+                        st.info(f"🔓 {uploaded_file.name} 암호 보호 해제 시도 중...")
+                        
+                        file_stream = io.BytesIO(file_bytes)
+                        office_file = msoffcrypto.OfficeFile(file_stream)
+                        
+                        decrypted = io.BytesIO()
+                        
+                        # 여러 방법으로 복호화 시도
+                        decryption_success = False
+                        
+                        # 방법 1: 빈 비밀번호
+                        try:
+                            office_file.load_key(password='')
+                            office_file.decrypt(decrypted)
+                            decryption_success = True
+                        except:
+                            pass
+                        
+                        # 방법 2: VelvetSweatshop 알고리즘
+                        if not decryption_success:
+                            try:
+                                file_stream.seek(0)
+                                office_file = msoffcrypto.OfficeFile(file_stream)
+                                decrypted = io.BytesIO()
+                                office_file.load_key()  # password 없이 호출
+                                office_file.decrypt(decrypted)
+                                decryption_success = True
+                            except:
+                                pass
+                        
+                        if not decryption_success:
+                            raise Exception("복호화 실패: 비밀번호가 필요합니다")
+                        
+                        decrypted.seek(0)
+                        
+                        # 복호화된 파일 읽기
+                        try:
+                            df = pd.read_excel(decrypted, engine='openpyxl')
+                            st.success(f"✅ {uploaded_file.name} 파일 읽기 완료 (암호 해제됨)")
+                            return df
+                        except:
+                            df = pd.read_excel(decrypted, engine='xlrd')
+                            st.success(f"✅ {uploaded_file.name} 파일 읽기 완료 (XLS, 암호 해제됨)")
+                            return df
+                            
+                    except Exception as e3:
+                        # 모든 방법 실패
+                        st.error(f"❌ {uploaded_file.name} 파일을 읽을 수 없습니다.")
+                        with st.expander("🔍 오류 상세 정보 및 해결 방법"):
+                            st.markdown("""
+                            ### 가능한 원인:
+                            1. **파일이 암호로 보호됨**: 엑셀 파일에 비밀번호가 설정되어 있습니다
+                            2. **파일 손상**: 파일이 손상되어 읽을 수 없습니다
+                            3. **지원하지 않는 형식**: 특수한 엑셀 형식일 수 있습니다
+                            
+                            ### 해결 방법:
+                            1. **엑셀에서 파일 열기** → **파일** → **다른 이름으로 저장**
+                            2. 저장 시 **"도구"** 버튼 클릭 → **일반 옵션**
+                            3. **"쓰기 암호"** 및 **"읽기 암호"** 제거
+                            4. 저장 후 다시 업로드
+                            
+                            또는 CSV 형식으로 저장 후 업로드해주세요.
+                            """)
+                        return None
         else:
             st.error(f"❌ 지원하지 않는 파일 형식입니다: {uploaded_file.name}")
             return None
