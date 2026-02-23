@@ -291,58 +291,138 @@ def convert_to_3pl_format(df, master_df, platform):
     # 원본 데이터와 병합
     result_df = pd.concat([df, match_df], axis=1)
     
-    # 3PL 표준 양식으로 재구성
+    # 오늘 날짜
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    # 3PL 표준 양식으로 재구성 (순서 중요!)
     output_df = pd.DataFrame()
     
-    # 0. 쇼핑몰 이름 (매칭 결과에서 가져옴 - 한글 이름)
+    # 1. 쇼핑몰 코드
+    output_df['쇼핑몰 코드'] = 'ONLINE1'
+    
+    # 2. 쇼핑몰 이름 (매칭 결과에서 가져옴 - 한글 이름)
     output_df['쇼핑몰 이름'] = match_df['플랫폼']
     
-    # 1. 주문번호
-    output_df['주문번호'] = result_df['주문번호']
+    # 3. 쇼핑몰 묶음 배송 번호 (주문번호와 동일)
+    output_df['쇼핑몰 묶음 배송 번호'] = result_df['주문번호']
     
-    # 2. 수취인 명
-    for col in ['수령인', '받는사람', '주문자', '받는분.이름', '수취인이름']:
-        if col in result_df.columns:
-            output_df['수취인 명'] = result_df[col]
-            break
+    # 4. 묶음배송유무
+    output_df['묶음배송유무'] = '유'
     
-    # 3. 수취인 핸드폰
+    # 5. 접수일시
+    output_df['접수일시'] = today
+    
+    # 6. 결제일시
+    output_df['결제일시'] = today
+    
+    # 7. 수취인 상세 주소
+    output_df['수취인 상세 주소'] = '.'
+    
+    # 8. 수취인 전화[안심 번호] (수취인 핸드폰과 동일)
+    phone = None
     for col in ['핸드폰', '수령인휴대폰', '주문자핸드폰', '받는분.전화번호', '수취인전화번호']:
         if col in result_df.columns:
-            output_df['수취인 핸드폰'] = result_df[col]
+            phone = result_df[col]
             break
+    output_df['수취인 전화[안심 번호]'] = phone
     
-    # 4. 수취인 기본 주소
+    # 9. 수취인 전화번호 (수취인 핸드폰과 동일)
+    output_df['수취인 전화번호'] = phone
+    
+    # 10. 수취인 건물 관리번호 (공란)
+    output_df['수취인 건물 관리번호'] = ''
+    
+    # 11. 주문자 명 (수취인 명과 동일)
+    recipient_name = None
+    for col in ['수령인', '받는사람', '주문자', '받는분.이름', '수취인이름']:
+        if col in result_df.columns:
+            recipient_name = result_df[col]
+            break
+    output_df['주문자 명'] = recipient_name
+    
+    # 12. 주문자 이메일
+    output_df['주문자 이메일'] = 'AA@aa.com'
+    
+    # 13. 수취인 우편번호 (공란)
+    output_df['수취인 우편번호'] = ''
+    
+    # 14. 수취인 주소 유형
+    output_df['수취인 주소 유형'] = '미확인'
+    
+    # 15. 주문자 전화[안심 번호] (수취인 핸드폰과 동일)
+    output_df['주문자 전화[안심 번호]'] = phone
+    
+    # 16. 주문자 전화번호 (수취인 핸드폰과 동일)
+    output_df['주문자 전화번호'] = phone
+    
+    # 17. 주문자 핸드폰 (수취인 핸드폰과 동일)
+    output_df['주문자 핸드폰'] = phone
+    
+    # 18. 추가 상품 여부
+    output_df['추가 상품 여부'] = '추가상품'
+    
+    # 19. 택배 운임 지불 방식
+    output_df['택배 운임 지불 방식'] = '신용'
+    
+    # 20. 쇼핑몰 주문 라인번호 (공란)
+    output_df['쇼핑몰 주문 라인번호'] = ''
+    
+    # 21. 결제금액 (공란)
+    output_df['결제금액'] = ''
+    
+    # 22. 고객 참조번호 (공란)
+    output_df['고객 참조번호'] = ''
+    
+    # 23. 요청(희망)배송 일자 (공란)
+    output_df['요청(희망)배송 일자'] = ''
+    
+    # 24. 쇼핑몰 주문번호
+    output_df['쇼핑몰 주문번호'] = result_df['주문번호']
+    
+    # 25. 수취인 명
+    output_df['수취인 명'] = recipient_name
+    
+    # 26. 수취인 핸드폰
+    output_df['수취인 핸드폰'] = phone
+    
+    # 27. 수취인 기본 주소
+    address = None
     for col in ['주소', '배송주소', '주문자주소', '받는분.통합주소', '수취인 주소']:
         if col in result_df.columns:
-            output_df['수취인 기본 주소'] = result_df[col]
+            address = result_df[col]
             break
+    output_df['수취인 기본 주소'] = address
     
-    # 5. 쇼핑몰 상품 코드 (매칭 결과에서)
+    # 28. 쇼핑몰 상품 코드 (매칭 결과에서)
     output_df['쇼핑몰 상품 코드'] = match_df['쇼핑몰 상품 코드']
     
-    # 6. 쇼핑몰 상품 이름 (매칭 결과에서)
+    # 29. 쇼핑몰 상품 이름 (매칭 결과에서)
     output_df['쇼핑몰 상품 이름'] = match_df['쇼핑몰 상품 이름']
     
-    # 7. 쇼핑몰 옵션 이름 (매칭 결과에서)
+    # 30. 쇼핑몰 옵션 이름 (매칭 결과에서)
     output_df['쇼핑몰 옵션 이름'] = match_df['쇼핑몰 옵션 이름']
     
-    # 8. 주문 수량
+    # 31. 주문 수량
+    quantity = None
     for col in ['수량', '구매수(수량)']:
         if col in result_df.columns:
-            output_df['주문 수량'] = result_df[col]
+            quantity = result_df[col]
             break
+    output_df['주문 수량'] = quantity
     
-    # 9. 배송 메세지
+    # 32. 배송 메세지
+    message = None
     for col in ['비고', '배송메세지', '요청사항', '배송메세지']:
         if col in result_df.columns:
-            output_df['배송 메세지'] = result_df[col]
+            message = result_df[col]
             break
+    output_df['배송 메세지'] = message
     
-    # 매칭 정보 추가
+    # 매칭 정보 추가 (디버깅용)
     output_df['매칭 방법'] = match_df['매칭 방법']
     output_df['확인 필요'] = match_df['확인 필요']
     
+    return output_df
     return output_df
 
 
@@ -693,10 +773,11 @@ def main():
         
         # 모든 컬럼을 문자열로 변환 (Arrow 변환 오류 방지)
         for col in merged_df.columns:
-            # NaN 값을 먼저 빈 문자열로 변환
-            merged_df[col] = merged_df[col].fillna('')
-            # 그 다음 문자열로 변환
+            # 먼저 문자열로 변환
             merged_df[col] = merged_df[col].astype(str)
+            # 'nan' 문자열을 빈 문자열로 변환 (쇼핑몰 코드 등 고정값 제외)
+            if col not in ['쇼핑몰 코드', '묶음배송유무', '수취인 상세 주소', '주문자 이메일', '수취인 주소 유형', '추가 상품 여부', '택배 운임 지불 방식']:
+                merged_df[col] = merged_df[col].replace('nan', '')
             # 'None' 문자열을 빈 문자열로 변환
             merged_df[col] = merged_df[col].replace('None', '')
         
