@@ -294,8 +294,8 @@ def convert_to_3pl_format(df, master_df, platform):
     # 3PL 표준 양식으로 재구성
     output_df = pd.DataFrame()
     
-    # 0. 플랫폼 (새로 추가)
-    output_df['플랫폼'] = platform.upper()
+    # 0. 쇼핑몰 이름 (매칭 결과에서 가져옴 - 한글 이름)
+    output_df['쇼핑몰 이름'] = match_df['플랫폼']
     
     # 1. 주문번호
     output_df['주문번호'] = result_df['주문번호']
@@ -693,9 +693,12 @@ def main():
         
         # 모든 컬럼을 문자열로 변환 (Arrow 변환 오류 방지)
         for col in merged_df.columns:
-            merged_df[col] = merged_df[col].astype(str).replace('nan', '')
+            # NaN 값을 먼저 빈 문자열로 변환
+            merged_df[col] = merged_df[col].fillna('')
+            # 그 다음 문자열로 변환
+            merged_df[col] = merged_df[col].astype(str)
+            # 'None' 문자열을 빈 문자열로 변환
             merged_df[col] = merged_df[col].replace('None', '')
-            merged_df[col] = merged_df[col].replace('<NA>', '')
         
         # 통계 정보
         col1, col2, col3, col4 = st.columns(4)
@@ -708,12 +711,12 @@ def main():
             need_confirm = merged_df['확인 필요'].sum()
             st.metric("확인 필요", need_confirm)
         with col4:
-            platforms = merged_df['플랫폼'].nunique()
+            platforms = merged_df['쇼핑몰 이름'].nunique()
             st.metric("처리 플랫폼", f"{platforms}개")
         
         # 플랫폼별 통계
         st.subheader("📊 플랫폼별 통계")
-        platform_stats = merged_df.groupby('플랫폼').agg({
+        platform_stats = merged_df.groupby('쇼핑몰 이름').agg({
             '주문번호': 'count',
             '확인 필요': 'sum'
         }).rename(columns={'주문번호': '주문 수', '확인 필요': '확인 필요 항목'})
@@ -734,7 +737,7 @@ def main():
             if not need_check.empty:
                 st.warning(f"⚠️ {len(need_check)}개 항목 확인 필요")
                 with st.expander("확인 필요 항목 보기"):
-                    st.dataframe(need_check[['플랫폼', '주문번호', '쇼핑몰 상품 이름', '매칭 방법']], use_container_width=True)
+                    st.dataframe(need_check[['쇼핑몰 이름', '주문번호', '쇼핑몰 상품 이름', '매칭 방법']], use_container_width=True)
             else:
                 st.success("✅ 모든 항목이 정확히 매칭되었습니다!")
         
