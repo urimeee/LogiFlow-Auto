@@ -294,11 +294,14 @@ def convert_to_3pl_format(df, master_df, platform):
     # 오늘 날짜
     today = datetime.now().strftime("%Y-%m-%d")
     
+    # 데이터 행 수
+    n_rows = len(result_df)
+    
     # 3PL 표준 양식으로 재구성 (순서 중요!)
     output_df = pd.DataFrame()
     
     # 1. 쇼핑몰 코드
-    output_df['쇼핑몰 코드'] = 'ONLINE1'
+    output_df['쇼핑몰 코드'] = ['ONLINE1'] * n_rows
     
     # 2. 쇼핑몰 이름 (매칭 결과에서 가져옴 - 한글 이름)
     output_df['쇼핑몰 이름'] = match_df['플랫폼']
@@ -307,16 +310,16 @@ def convert_to_3pl_format(df, master_df, platform):
     output_df['쇼핑몰 묶음 배송 번호'] = result_df['주문번호']
     
     # 4. 묶음배송유무
-    output_df['묶음배송유무'] = '유'
+    output_df['묶음배송유무'] = ['유'] * n_rows
     
     # 5. 접수일시
-    output_df['접수일시'] = today
+    output_df['접수일시'] = [today] * n_rows
     
     # 6. 결제일시
-    output_df['결제일시'] = today
+    output_df['결제일시'] = [today] * n_rows
     
     # 7. 수취인 상세 주소
-    output_df['수취인 상세 주소'] = '.'
+    output_df['수취인 상세 주소'] = ['.'] * n_rows
     
     # 8. 수취인 전화[안심 번호] (수취인 핸드폰과 동일)
     phone = None
@@ -330,7 +333,7 @@ def convert_to_3pl_format(df, master_df, platform):
     output_df['수취인 전화번호'] = phone
     
     # 10. 수취인 건물 관리번호 (공란)
-    output_df['수취인 건물 관리번호'] = ''
+    output_df['수취인 건물 관리번호'] = [''] * n_rows
     
     # 11. 주문자 명 (수취인 명과 동일)
     recipient_name = None
@@ -341,13 +344,13 @@ def convert_to_3pl_format(df, master_df, platform):
     output_df['주문자 명'] = recipient_name
     
     # 12. 주문자 이메일
-    output_df['주문자 이메일'] = 'AA@aa.com'
+    output_df['주문자 이메일'] = ['AA@aa.com'] * n_rows
     
     # 13. 수취인 우편번호 (공란)
-    output_df['수취인 우편번호'] = ''
+    output_df['수취인 우편번호'] = [''] * n_rows
     
     # 14. 수취인 주소 유형
-    output_df['수취인 주소 유형'] = '미확인'
+    output_df['수취인 주소 유형'] = ['미확인'] * n_rows
     
     # 15. 주문자 전화[안심 번호] (수취인 핸드폰과 동일)
     output_df['주문자 전화[안심 번호]'] = phone
@@ -359,22 +362,22 @@ def convert_to_3pl_format(df, master_df, platform):
     output_df['주문자 핸드폰'] = phone
     
     # 18. 추가 상품 여부
-    output_df['추가 상품 여부'] = '추가상품'
+    output_df['추가 상품 여부'] = ['추가상품'] * n_rows
     
     # 19. 택배 운임 지불 방식
-    output_df['택배 운임 지불 방식'] = '신용'
+    output_df['택배 운임 지불 방식'] = ['신용'] * n_rows
     
     # 20. 쇼핑몰 주문 라인번호 (공란)
-    output_df['쇼핑몰 주문 라인번호'] = ''
+    output_df['쇼핑몰 주문 라인번호'] = [''] * n_rows
     
     # 21. 결제금액 (공란)
-    output_df['결제금액'] = ''
+    output_df['결제금액'] = [''] * n_rows
     
     # 22. 고객 참조번호 (공란)
-    output_df['고객 참조번호'] = ''
+    output_df['고객 참조번호'] = [''] * n_rows
     
     # 23. 요청(희망)배송 일자 (공란)
-    output_df['요청(희망)배송 일자'] = ''
+    output_df['요청(희망)배송 일자'] = [''] * n_rows
     
     # 24. 쇼핑몰 주문번호
     output_df['쇼핑몰 주문번호'] = result_df['주문번호']
@@ -422,7 +425,6 @@ def convert_to_3pl_format(df, master_df, platform):
     output_df['매칭 방법'] = match_df['매칭 방법']
     output_df['확인 필요'] = match_df['확인 필요']
     
-    return output_df
     return output_df
 
 
