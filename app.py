@@ -133,12 +133,13 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
         korean_platform_name = PLATFORM_NAME_MAP.get(platform, platform)
         platform_master = master_df[master_df['판매처'] == korean_platform_name].copy()
     else:
+        korean_platform_name = platform
         platform_master = master_df
     
     # 마스터 데이터가 없으면 즉시 매칭 실패 반환
     if platform_master.empty:
         return {
-            '플랫폼': platform,
+            '플랫폼': korean_platform_name,  # 한글 이름 사용
             '판매 상품 코드': None,
             '쇼핑몰 상품 코드': None,
             '쇼핑몰 상품 이름': None,
@@ -179,7 +180,7 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
         if not exact_match.empty:
             matched = exact_match.iloc[0]
             return {
-                '플랫폼': platform,
+                '플랫폼': korean_platform_name,  # 한글 이름 사용
                 '판매 상품 코드': matched['판매 상품 코드'],
                 '쇼핑몰 상품 코드': matched['쇼핑몰 상품 코드'],
                 '쇼핑몰 상품 이름': matched['쇼핑몰 상품 이름'],
@@ -197,7 +198,7 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
             if not option_matches.empty:
                 matched = option_matches.iloc[0]
                 return {
-                    '플랫폼': platform,
+                    '플랫폼': korean_platform_name,  # 한글 이름 사용
                     '판매 상품 코드': matched['판매 상품 코드'],
                     '쇼핑몰 상품 코드': matched['쇼핑몰 상품 코드'],
                     '쇼핑몰 상품 이름': matched['쇼핑몰 상품 이름'],
@@ -210,7 +211,7 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
         if not name_matches.empty:
             matched = name_matches.iloc[0]
             return {
-                '플랫폼': platform,
+                '플랫폼': korean_platform_name,  # 한글 이름 사용
                 '판매 상품 코드': matched['판매 상품 코드'],
                 '쇼핑몰 상품 코드': matched['쇼핑몰 상품 코드'],
                 '쇼핑몰 상품 이름': matched['쇼핑몰 상품 이름'],
@@ -237,7 +238,7 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
             if best_sim > 0.5:  # 유사도 50% 이상
                 matched = platform_master.iloc[best_match_idx]
                 return {
-                    '플랫폼': platform,
+                    '플랫폼': korean_platform_name,  # 한글 이름 사용
                     '판매 상품 코드': matched['판매 상품 코드'],
                     '쇼핑몰 상품 코드': matched['쇼핑몰 상품 코드'],
                     '쇼핑몰 상품 이름': matched['쇼핑몰 상품 이름'],
@@ -248,7 +249,7 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
     
     # 매칭 실패
     return {
-        '플랫폼': platform,
+        '플랫폼': korean_platform_name,  # 한글 이름 사용
         '판매 상품 코드': None,
         '쇼핑몰 상품 코드': search_code,
         '쇼핑몰 상품 이름': product_name,
