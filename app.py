@@ -367,8 +367,8 @@ def convert_to_3pl_format(df, master_df, platform):
     # 19. 택배 운임 지불 방식
     output_df['택배 운임 지불 방식'] = ['신용'] * n_rows
     
-    # 20. 쇼핑몰 주문 라인번호 (공란)
-    output_df['쇼핑몰 주문 라인번호'] = [''] * n_rows
+    # 20. 쇼핑몰 주문 라인번호 (1부터 시작하는 순번)
+    output_df['쇼핑몰 주문 라인번호'] = list(range(1, n_rows + 1))
     
     # 21. 결제금액 (공란)
     output_df['결제금액'] = [''] * n_rows
@@ -376,8 +376,8 @@ def convert_to_3pl_format(df, master_df, platform):
     # 22. 고객 참조번호 (공란)
     output_df['고객 참조번호'] = [''] * n_rows
     
-    # 23. 요청(희망)배송 일자 (공란)
-    output_df['요청(희망)배송 일자'] = [''] * n_rows
+    # 23. 요청(희망)배송 일자 (오늘 날짜)
+    output_df['요청(희망)배송 일자'] = [today] * n_rows
     
     # 24. 쇼핑몰 주문번호
     output_df['쇼핑몰 주문번호'] = result_df['주문번호']
