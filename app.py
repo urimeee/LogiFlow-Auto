@@ -800,9 +800,9 @@ def main():
         # 플랫폼별 통계
         st.subheader("📊 플랫폼별 통계")
         platform_stats = merged_df.groupby('쇼핑몰 이름').agg({
-            '주문번호': 'count',
+            '쇼핑몰 주문번호': 'count',
             '확인 필요': 'sum'
-        }).rename(columns={'주문번호': '주문 수', '확인 필요': '확인 필요 항목'})
+        }).rename(columns={'쇼핑몰 주문번호': '주문 수', '확인 필요': '확인 필요 항목'})
         st.dataframe(platform_stats, use_container_width=True)
         
         # 매칭 방법별 통계
