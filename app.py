@@ -820,7 +820,7 @@ def main():
             if not need_check.empty:
                 st.warning(f"⚠️ {len(need_check)}개 항목 확인 필요")
                 with st.expander("확인 필요 항목 보기"):
-                    st.dataframe(need_check[['쇼핑몰 이름', '주문번호', '쇼핑몰 상품 이름', '매칭 방법']], use_container_width=True)
+                    st.dataframe(need_check[['쇼핑몰 이름', '쇼핑몰 주문번호', '쇼핑몰 상품 이름', '매칭 방법']], use_container_width=True)
             else:
                 st.success("✅ 모든 항목이 정확히 매칭되었습니다!")
         
