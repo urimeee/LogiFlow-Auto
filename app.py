@@ -773,8 +773,15 @@ def main():
         
         merged_df = pd.concat(processed_dfs, ignore_index=True)
         
+        # 전체 통합 데이터에 대해 쇼핑몰 주문 라인번호 재할당 (1부터 시작, 중복 없음)
+        merged_df['쇼핑몰 주문 라인번호'] = list(range(1, len(merged_df) + 1))
+        
         # 모든 컬럼을 문자열로 변환 (Arrow 변환 오류 방지)
         for col in merged_df.columns:
+            # 쇼핑몰 주문 라인번호는 정수형 유지
+            if col == '쇼핑몰 주문 라인번호':
+                continue
+            
             # 먼저 문자열로 변환
             merged_df[col] = merged_df[col].astype(str)
             # 'nan' 문자열을 빈 문자열로 변환 (쇼핑몰 코드 등 고정값 제외)
