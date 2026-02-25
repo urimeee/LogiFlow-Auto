@@ -424,20 +424,28 @@ def convert_to_3pl_format(df, master_df, platform):
     output_df['쇼핑몰 옵션 이름'] = match_df['쇼핑몰 옵션 이름']
     
     # 31. 주문 수량
-    quantity = None
-    for col in ['수량', '구매수(수량)']:
-        if col in result_df.columns:
-            quantity = result_df[col]
-            break
-    output_df['주문 수량'] = quantity
+    if platform == 'app':
+        # 앱의 경우 항상 1
+        output_df['주문 수량'] = [1] * n_rows
+    else:
+        quantity = None
+        for col in ['수량', '구매수(수량)']:
+            if col in result_df.columns:
+                quantity = result_df[col]
+                break
+        output_df['주문 수량'] = quantity
     
     # 32. 배송 메세지
-    message = None
-    for col in ['비고', '배송메세지', '요청사항', '배송메세지']:
-        if col in result_df.columns:
-            message = result_df[col]
-            break
-    output_df['배송 메세지'] = message
+    if platform == 'app':
+        # 앱의 경우 항상 '벨x, 문자'
+        output_df['배송 메세지'] = ['벨x, 문자'] * n_rows
+    else:
+        message = None
+        for col in ['비고', '배송메세지', '요청사항', '배송메세지']:
+            if col in result_df.columns:
+                message = result_df[col]
+                break
+        output_df['배송 메세지'] = message
     
     # 매칭 정보 추가 (디버깅용)
     output_df['매칭 방법'] = match_df['매칭 방법']
