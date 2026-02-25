@@ -154,9 +154,11 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
         product_name = row.get(name_col, None)
         option_name = row.get(option_col, None)
     elif platform == 'app':
-        # 앱: 주문상품 파싱
-        parsed = parse_app_product(row.get('주문상품', ''))
-        search_code = parsed['상품명']
+        # 앱: 주문상품에서 상품명 추출 (대괄호 안의 텍스트)
+        product_str = row.get('주문상품', '')
+        parsed = parse_app_product(product_str)
+        # 상품명으로만 매칭 (파일이 깨진 경우 대비)
+        search_code = parsed['상품명']  # 예: 'Zee', 'Eva'
         product_name = parsed['상품명']
         option_name = parsed['옵션']
     elif platform == 'coupang':
@@ -188,6 +190,22 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
                 '매칭 방법': '코드 정확 매칭',
                 '확인 필요': False
             }
+        
+        # 앱 플랫폼 특수 처리: 판매 상품 코드에서 상품명 부분 매칭
+        if platform == 'app':
+            # 판매 상품 코드에서 [상품명] 패턴 검색
+            pattern_match = platform_master[platform_master['판매 상품 코드'].str.contains(f'\\[{search_code}\\]', case=False, na=False, regex=True)]
+            if not pattern_match.empty:
+                matched = pattern_match.iloc[0]
+                return {
+                    '플랫폼': korean_platform_name,
+                    '판매 상품 코드': matched['판매 상품 코드'],
+                    '쇼핑몰 상품 코드': matched['쇼핑몰 상품 코드'],
+                    '쇼핑몰 상품 이름': matched['쇼핑몰 상품 이름'],
+                    '쇼핑몰 옵션 이름': matched['쇼핑몰 옵션 이름'],
+                    '매칭 방법': '상품명 패턴 매칭',
+                    '확인 필요': False
+                }
     
     # 2단계: 상품명 + 옵션명 조합 매칭
     if pd.notna(product_name):
@@ -437,6 +455,22 @@ def read_file(uploaded_file):
             # CSV 파일의 경우 인코딩 자동 감지
             file_bytes = uploaded_file.read()
             encoding = detect_encoding(file_bytes)
+            
+            # 앱 파일 특수 처리 (컬럼명 깨짐 방지)
+            if '앱' in uploaded_file.name:
+                app_columns = ['주문번호', '상태', '주문상품', '결제금액', '크레딧', '쿠폰', '배송메모',
+                             '받는분.이름', '받는분.전화번호', '받는분.우편번호', '받는분.기본주소',
+                             '받는분.주소', '받는분.상세주소', '주문자.ID', '주문자.닉네임',
+                             '주문자.판매', '주문자.전화번호', '주문자.이메일']
+                try:
+                    # CP949로 디코딩 시도 (errors='replace')
+                    decoded = file_bytes.decode('cp949', errors='replace')
+                    df = pd.read_csv(io.StringIO(decoded), names=app_columns, skiprows=1)
+                    st.success(f"✅ {uploaded_file.name} - 앱 파일 특수 처리 완료")
+                    return df
+                except Exception as e:
+                    st.error(f"❌ 앱 파일 읽기 실패: {str(e)}")
+                    return None
             
             # 여러 인코딩 시도
             encodings = [encoding, 'utf-8-sig', 'cp949', 'euc-kr', 'utf-8']
