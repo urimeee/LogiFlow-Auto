@@ -150,6 +150,7 @@ def parse_app_product(product_str):
     """
     앱 주문상품 파싱
     입력: [Zee] 1개 (페리윙클 PERIWINKLE 1개)
+    입력: [Dip] 1개 (딥 플럼 1개)
     출력: {'상품명': 'Zee', '수량': 1, '옵션': '페리윙클'}
     """
     import re
@@ -157,14 +158,34 @@ def parse_app_product(product_str):
     if pd.isna(product_str):
         return {'상품명': None, '수량': 1, '옵션': None}
     
+    # 상품명 추출 (대괄호 안)
     product_match = re.search(r'\[(.*?)\]', product_str)
+    product_name = product_match.group(1) if product_match else None
+    
+    # 수량 추출
     quantity_match = re.search(r'\]\s*(\d+)개', product_str)
-    option_match = re.search(r'\((.*?)\s+[A-Z\s]+\d+개\)', product_str)
+    quantity = int(quantity_match.group(1)) if quantity_match else 1
+    
+    # 옵션 추출 (괄호 안의 내용)
+    # 예: (딥 플럼 1개) → "딥 플럼"
+    # 예: (페리윙클 PERIWINKLE 1개) → "페리윙클"
+    option_name = None
+    option_match = re.search(r'\((.*?)\)', product_str)
+    if option_match:
+        option_text = option_match.group(1)
+        # "딥 플럼 1개" → "딥 플럼"
+        # "페리윙클 PERIWINKLE 1개" → "페리윙클"
+        # 숫자+개 제거, 영문 대문자 제거
+        option_name = re.sub(r'\d+개', '', option_text)  # 숫자+개 제거
+        option_name = re.sub(r'[A-Z\s]+', '', option_name)  # 영문 대문자 제거
+        option_name = option_name.strip()
+        if not option_name:
+            option_name = None
     
     return {
-        '상품명': product_match.group(1) if product_match else None,
-        '수량': int(quantity_match.group(1)) if quantity_match else 1,
-        '옵션': option_match.group(1) if option_match else None
+        '상품명': product_name,
+        '수량': quantity,
+        '옵션': option_name
     }
 
 
@@ -280,8 +301,21 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
         if platform == 'app' and search_code:
             # 방법 1: 판매 상품 코드에서 [상품명] 패턴 검색
             pattern_match = platform_master[platform_master['판매 상품 코드'].str.contains(f'\\[{search_code}\\]', case=False, na=False, regex=True)]
+            
             if not pattern_match.empty:
-                matched = pattern_match.iloc[0]
+                # 여러 개가 매칭될 경우 옵션명도 함께 확인
+                if len(pattern_match) > 1 and option_name:
+                    # 옵션명이 있으면 옵션명까지 일치하는 것 찾기
+                    option_filtered = pattern_match[pattern_match['판매 상품 코드'].str.contains(str(option_name), case=False, na=False)]
+                    if not option_filtered.empty:
+                        pattern_match = option_filtered
+                
+                # 원본 문자열과 가장 유사한 것 선택 (가장 짧은 것 = 가장 정확한 매칭)
+                # 예: "[Dip] 1개 (딥 플럼 1개)" vs "딥 극락 번들..."
+                pattern_match = pattern_match.copy()  # 경고 방지
+                pattern_match['_len'] = pattern_match['판매 상품 코드'].str.len()
+                matched = pattern_match.sort_values('_len').iloc[0]
+                
                 return {
                     '플랫폼': korean_platform_name,
                     '판매 상품 코드': matched['판매 상품 코드'],
@@ -295,8 +329,14 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
             # 방법 2: 판매 상품 코드에서 키워드 포함 검색 (대괄호 없는 경우)
             # 예: "토이 전용 충전기" → "토이 전용 충전기(5V 1A)" 찾기
             keyword_match = platform_master[platform_master['판매 상품 코드'].str.contains(search_code, case=False, na=False, regex=False)]
+            
             if not keyword_match.empty:
-                matched = keyword_match.iloc[0]
+                # 여러 개가 매칭될 경우 가장 짧은 것 선택 (가장 정확한 매칭)
+                # 예: "토이 전용 충전기(5V 1A)" vs "딥 극락 번들(..., 토이 전용 충전기...)"
+                keyword_match = keyword_match.copy()  # 경고 방지
+                keyword_match['_len'] = keyword_match['판매 상품 코드'].str.len()
+                matched = keyword_match.sort_values('_len').iloc[0]
+                
                 return {
                     '플랫폼': korean_platform_name,
                     '판매 상품 코드': matched['판매 상품 코드'],
