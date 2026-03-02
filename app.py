@@ -97,7 +97,7 @@ def split_app_products(product_str):
     """
     import re
     
-    if pd.isna(product_str):
+    if pd.isna(product_str) or (isinstance(product_str, pd.DataFrame)):
         return [product_str]
     
     # 대괄호 [] 안의 상품명과 괄호 () 안의 옵션 찾기
@@ -151,12 +151,13 @@ def parse_app_product(product_str):
     앱 주문상품 파싱
     입력: [Zee] 1개 (페리윙클 PERIWINKLE 1개)
     입력: [Dip] 1개 (딥 플럼 1개)
-    출력: {'상품명': 'Zee', '수량': 1, '옵션': '페리윙클'}
+    입력: [(앱특가) 아크 극락 번들] 1개 (아이스 1개, ...)
+    출력: {'상품명': 'Zee', '수량': 1, '옵션': '페리윙클', '옵션_원본': '페리윙클 PERIWINKLE 1개', 'IC/PL_키워드': None}
     """
     import re
     
     if pd.isna(product_str):
-        return {'상품명': None, '수량': 1, '옵션': None}
+        return {'상품명': None, '수량': 1, '옵션': None, '옵션_원본': None, 'IC/PL_키워드': None}
     
     # 상품명 추출 (대괄호 안)
     product_match = re.search(r'\[(.*?)\]', product_str)
@@ -166,26 +167,47 @@ def parse_app_product(product_str):
     quantity_match = re.search(r'\]\s*(\d+)개', product_str)
     quantity = int(quantity_match.group(1)) if quantity_match else 1
     
-    # 옵션 추출 (괄호 안의 내용)
-    # 예: (딥 플럼 1개) → "딥 플럼"
-    # 예: (페리윙클 PERIWINKLE 1개) → "페리윙클"
+    # 모든 괄호 내용 추출 (IC/PL 구분을 위해)
+    all_parens = re.findall(r'\(([^)]+)\)', product_str)
+    
+    # IC/PL 키워드 찾기
+    ic_pl_keyword = None
+    for paren_text in all_parens:
+        if '아이스' in paren_text or 'ICE' in paren_text.upper() or 'IC' in paren_text.upper():
+            ic_pl_keyword = 'IC'
+            break
+        elif '플럼' in paren_text or 'PLUM' in paren_text.upper() or 'PL' in paren_text.upper():
+            ic_pl_keyword = 'PL'
+            break
+        elif '페리윙클' in paren_text or 'PERIWINKLE' in paren_text.upper() or 'PW' in paren_text.upper():
+            ic_pl_keyword = 'PW'
+            break
+    
+    # 옵션 추출 (첫 번째 괄호 내용에서)
     option_name = None
-    option_match = re.search(r'\((.*?)\)', product_str)
-    if option_match:
-        option_text = option_match.group(1)
-        # "딥 플럼 1개" → "딥 플럼"
-        # "페리윙클 PERIWINKLE 1개" → "페리윙클"
-        # 숫자+개 제거, 영문 대문자 제거
-        option_name = re.sub(r'\d+개', '', option_text)  # 숫자+개 제거
-        option_name = re.sub(r'[A-Z\s]+', '', option_name)  # 영문 대문자 제거
+    option_original = None
+    if all_parens:
+        option_original = all_parens[0]  # 원본 보존
+        option_text = option_original
+        
+        # 정제: 숫자+개 제거하되, 띄어쓰기는 유지
+        option_name = re.sub(r'\d+개', '', option_text)  # "딥 플럼 1개" → "딥 플럼 "
+        option_name = option_name.strip()  # 앞뒤 공백만 제거
+        
+        # 영문 대문자 제거 (하지만 띄어쓰기는 유지)
+        # "페리윙클 PERIWINKLE" → "페리윙클 "
+        option_name = re.sub(r'\s+[A-Z]+\s*', ' ', option_name)  # 영문 단어 제거
         option_name = option_name.strip()
+        
         if not option_name:
             option_name = None
     
     return {
         '상품명': product_name,
         '수량': quantity,
-        '옵션': option_name
+        '옵션': option_name,
+        '옵션_원본': option_original,
+        'IC/PL_키워드': ic_pl_keyword
     }
 
 
@@ -244,6 +266,8 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
         search_code = parsed['상품명']  # 예: 'Zee', 'Eva'
         product_name = parsed['상품명']
         option_name = parsed['옵션']
+        option_original = parsed['옵션_원본']
+        ic_pl_keyword = parsed['IC/PL_키워드']
         
         # 대괄호가 없는 경우 (분리된 상품: "토이 전용 충전기 (5V 1A)" 등)
         # 전체 문자열을 검색 키워드로 사용
@@ -300,17 +324,33 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
         # 앱 플랫폼 특수 처리: 판매 상품 코드에서 상품명 부분 매칭
         if platform == 'app' and search_code:
             # 방법 1: 판매 상품 코드에서 [상품명] 패턴 검색
-            pattern_match = platform_master[platform_master['판매 상품 코드'].str.contains(f'\\[{search_code}\\]', case=False, na=False, regex=True)]
+            # 괄호 () 때문에 정규식이 아닌 단순 문자열 검색 사용
+            search_pattern = f'[{search_code}]'
+            pattern_match = platform_master[platform_master['판매 상품 코드'].str.contains(search_pattern, case=False, na=False, regex=False)]
             
             if not pattern_match.empty:
-                # 여러 개가 매칭될 경우 옵션명도 함께 확인
+                # Step 1: 원본 문자열(option_original)과 정확히 일치하는 항목 우선 검색
+                # 예: "딥 페리윙클 1개" vs "딥 플럼 1개" 구분
+                if option_original:
+                    exact_option_match = pattern_match[pattern_match['판매 상품 코드'].str.contains(option_original, case=False, na=False, regex=False)]
+                    if not exact_option_match.empty:
+                        pattern_match = exact_option_match
+                
+                # Step 2: 옵션명(띄어쓰기 포함)으로 필터링
+                # 예: "딥 페리윙클" (띄어쓰기 유지)
                 if len(pattern_match) > 1 and option_name:
-                    # 옵션명이 있으면 옵션명까지 일치하는 것 찾기
-                    option_filtered = pattern_match[pattern_match['판매 상품 코드'].str.contains(str(option_name), case=False, na=False)]
+                    option_filtered = pattern_match[pattern_match['판매 상품 코드'].str.contains(str(option_name), case=False, na=False, regex=False)]
                     if not option_filtered.empty:
                         pattern_match = option_filtered
                 
-                # 원본 문자열과 가장 유사한 것 선택 (가장 짧은 것 = 가장 정확한 매칭)
+                # Step 3: IC/PL 키워드로 구분
+                # 예: "아이스" → IC 버전, "플럼" → PL 버전
+                if len(pattern_match) > 1 and ic_pl_keyword:
+                    ic_pl_filtered = pattern_match[pattern_match['쇼핑몰 상품 이름'].str.contains(ic_pl_keyword, case=False, na=False)]
+                    if not ic_pl_filtered.empty:
+                        pattern_match = ic_pl_filtered
+                
+                # Step 4: 가장 짧은 것 선택 (가장 정확한 매칭)
                 # 예: "[Dip] 1개 (딥 플럼 1개)" vs "딥 극락 번들..."
                 pattern_match = pattern_match.copy()  # 경고 방지
                 pattern_match['_len'] = pattern_match['판매 상품 코드'].str.len()
