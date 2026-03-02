@@ -85,6 +85,67 @@ def detect_platform(df):
     return 'unknown'
 
 
+def split_app_products(product_str):
+    """
+    앱 주문상품을 쉼표 기준으로 분리
+    입력: "[Zee] 1개 (페리윙클 PERIWINKLE 1개, 토이 전용 충전기 (5V 1A) 1개)"
+    출력: ["[Zee] 1개 (페리윙클 PERIWINKLE 1개)", "토이 전용 충전기 (5V 1A) 1개)"]
+    
+    특별 케이스:
+    "[(앱특가) 아크 극락 번들] 1개 (아이스 1개, 추가 극락젤 1set(10개입) (50% 할인) 2개)"
+    → ["[(앱특가) 아크 극락 번들] 1개 (아이스 1개)", "추가 극락젤 1set(10개입) (50% 할인) 2개)"]
+    """
+    import re
+    
+    if pd.isna(product_str):
+        return [product_str]
+    
+    # 대괄호 [] 안의 상품명과 괄호 () 안의 옵션 찾기
+    # 패턴: [상품명] N개 (옵션1, 옵션2, ...)
+    match = re.match(r'(\[.*?\]\s*\d+개\s*\()(.*?)(\))', product_str)
+    
+    if not match:
+        return [product_str]
+    
+    prefix = match.group(1)  # "[상품명] N개 ("
+    options_str = match.group(2)  # "옵션1, 옵션2, ..."
+    suffix = match.group(3)  # ")"
+    
+    # 괄호 안의 내용을 쉼표로 분리 (단, 괄호 안의 쉼표는 제외)
+    options = []
+    current = []
+    paren_depth = 0
+    
+    for char in options_str:
+        if char == '(':
+            paren_depth += 1
+            current.append(char)
+        elif char == ')':
+            paren_depth -= 1
+            current.append(char)
+        elif char == ',' and paren_depth == 0:
+            options.append(''.join(current).strip())
+            current = []
+        else:
+            current.append(char)
+    
+    if current:
+        options.append(''.join(current).strip())
+    
+    # 옵션이 1개면 분리 안 함
+    if len(options) <= 1:
+        return [product_str]
+    
+    # 첫 번째 옵션은 원래 형식 유지
+    results = [f"{prefix}{options[0]}{suffix}"]
+    
+    # 나머지 옵션들은 단독으로
+    for opt in options[1:]:
+        results.append(f"{opt}{suffix}")
+    
+    return results
+
+
 def parse_app_product(product_str):
     """
     앱 주문상품 파싱
@@ -464,17 +525,45 @@ def read_file(uploaded_file):
             file_bytes = uploaded_file.read()
             encoding = detect_encoding(file_bytes)
             
-            # 앱 파일 특수 처리 (컬럼명 깨짐 방지)
+            # 앱 파일 특수 처리 (컬럼명 깨짐 방지 + 복수 상품 분리)
             if '앱' in uploaded_file.name:
-                app_columns = ['주문번호', '상태', '주문상품', '결제금액', '크레딧', '쿠폰', '배송메모',
-                             '받는분.이름', '받는분.전화번호', '받는분.우편번호', '받는분.기본주소',
-                             '받는분.주소', '받는분.상세주소', '주문자.ID', '주문자.닉네임',
-                             '주문자.판매', '주문자.전화번호', '주문자.이메일']
+                app_columns = ['주문번호', '상태', '주문상품', '입금액', '크레딧', '쿠폰', '구독상태',
+                             '받는분.이름', '받는분.전화번호', '받는분.우편번호', '받는분.통합주소',
+                             '받는분.주소', '받는분.상세주소', '사용자.ID', '사용자.닉네임',
+                             '사용자.실명', '사용자.전화번호', '사용자.이메일']
                 try:
-                    # CP949로 디코딩 시도 (errors='replace')
-                    decoded = file_bytes.decode('cp949', errors='replace')
-                    df = pd.read_csv(io.StringIO(decoded), names=app_columns, skiprows=1)
-                    st.success(f"✅ {uploaded_file.name} - 앱 파일 특수 처리 완료")
+                    # UTF-8로 디코딩 시도
+                    try:
+                        decoded = file_bytes.decode('utf-8')
+                    except UnicodeDecodeError:
+                        # UTF-8 실패 시 CP949 시도
+                        decoded = file_bytes.decode('cp949', errors='replace')
+                    
+                    df = pd.read_csv(io.StringIO(decoded))
+                    
+                    # 컬럼명이 깨진 경우 수동 설정
+                    if len(df.columns) == len(app_columns):
+                        if not all(col in df.columns for col in ['주문번호', '주문상품', '받는분.이름']):
+                            df.columns = app_columns
+                    
+                    # 복수 상품 주문 분리
+                    expanded_rows = []
+                    for idx, row in df.iterrows():
+                        product_str = row['주문상품']
+                        products = split_app_products(product_str)
+                        
+                        if len(products) == 1:
+                            # 단일 상품
+                            expanded_rows.append(row)
+                        else:
+                            # 복수 상품 - 각각 별도 행으로
+                            for product in products:
+                                new_row = row.copy()
+                                new_row['주문상품'] = product
+                                expanded_rows.append(new_row)
+                    
+                    df = pd.DataFrame(expanded_rows).reset_index(drop=True)
+                    st.success(f"✅ {uploaded_file.name} - 앱 파일 처리 완료 (총 {len(df)}개 행)")
                     return df
                 except Exception as e:
                     st.error(f"❌ 앱 파일 읽기 실패: {str(e)}")
