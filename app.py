@@ -215,13 +215,37 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
         product_name = row.get(name_col, None)
         option_name = row.get(option_col, None)
     elif platform == 'app':
-        # 앱: 주문상품에서 상품명 추출 (대괄호 안의 텍스트)
+        # 앱: 주문상품에서 상품명 추출
         product_str = row.get('주문상품', '')
+        
+        # 대괄호가 있는 경우 (예: [Zee] 1개 (...))
         parsed = parse_app_product(product_str)
-        # 상품명으로만 매칭 (파일이 깨진 경우 대비)
         search_code = parsed['상품명']  # 예: 'Zee', 'Eva'
         product_name = parsed['상품명']
         option_name = parsed['옵션']
+        
+        # 대괄호가 없는 경우 (분리된 상품: "토이 전용 충전기 (5V 1A)" 등)
+        # 전체 문자열을 검색 키워드로 사용
+        if search_code is None and product_str:
+            # 괄호 앞부분만 추출 (예: "토이 전용 충전기(5V 1A)" → "토이 전용 충전기")
+            import re
+            # 한글/영문/숫자/공백만 추출
+            clean_str = re.sub(r'\(.*?\)', '', product_str).strip()
+            
+            # 특수 키워드 매핑 (마스터 파일에 정확한 이름이 없는 경우)
+            keyword_mapping = {
+                '추가 극락젤': '극락젤',
+                '추가 극락젤 1set': '극락젤',
+            }
+            
+            # 키워드 변환 시도
+            for key, value in keyword_mapping.items():
+                if key in clean_str:
+                    clean_str = value
+                    break
+            
+            search_code = clean_str
+            product_name = clean_str
     elif platform == 'coupang':
         # 쿠팡: 옵션ID 사용
         search_code = str(row.get('옵션ID', ''))
@@ -253,8 +277,8 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
             }
         
         # 앱 플랫폼 특수 처리: 판매 상품 코드에서 상품명 부분 매칭
-        if platform == 'app':
-            # 판매 상품 코드에서 [상품명] 패턴 검색
+        if platform == 'app' and search_code:
+            # 방법 1: 판매 상품 코드에서 [상품명] 패턴 검색
             pattern_match = platform_master[platform_master['판매 상품 코드'].str.contains(f'\\[{search_code}\\]', case=False, na=False, regex=True)]
             if not pattern_match.empty:
                 matched = pattern_match.iloc[0]
@@ -265,6 +289,21 @@ def match_product_code(row, master_df, platform, code_col=None, name_col=None, o
                     '쇼핑몰 상품 이름': matched['쇼핑몰 상품 이름'],
                     '쇼핑몰 옵션 이름': matched['쇼핑몰 옵션 이름'],
                     '매칭 방법': '상품명 패턴 매칭',
+                    '확인 필요': False
+                }
+            
+            # 방법 2: 판매 상품 코드에서 키워드 포함 검색 (대괄호 없는 경우)
+            # 예: "토이 전용 충전기" → "토이 전용 충전기(5V 1A)" 찾기
+            keyword_match = platform_master[platform_master['판매 상품 코드'].str.contains(search_code, case=False, na=False, regex=False)]
+            if not keyword_match.empty:
+                matched = keyword_match.iloc[0]
+                return {
+                    '플랫폼': korean_platform_name,
+                    '판매 상품 코드': matched['판매 상품 코드'],
+                    '쇼핑몰 상품 코드': matched['쇼핑몰 상품 코드'],
+                    '쇼핑몰 상품 이름': matched['쇼핑몰 상품 이름'],
+                    '쇼핑몰 옵션 이름': matched['쇼핑몰 옵션 이름'],
+                    '매칭 방법': '키워드 매칭',
                     '확인 필요': False
                 }
     
@@ -546,20 +585,26 @@ def read_file(uploaded_file):
                         if not all(col in df.columns for col in ['주문번호', '주문상품', '받는분.이름']):
                             df.columns = app_columns
                     
-                    # 복수 상품 주문 분리
+                    # 복수 상품 주문 분리 (주문번호에 알파벳 접미사 추가)
                     expanded_rows = []
                     for idx, row in df.iterrows():
                         product_str = row['주문상품']
                         products = split_app_products(product_str)
                         
                         if len(products) == 1:
-                            # 단일 상품
+                            # 단일 상품 - 주문번호 그대로
                             expanded_rows.append(row)
                         else:
-                            # 복수 상품 - 각각 별도 행으로
-                            for product in products:
+                            # 복수 상품 - 각각 별도 행으로 + 주문번호에 알파벳 접미사
+                            original_order_no = row['주문번호']
+                            for i, product in enumerate(products):
                                 new_row = row.copy()
                                 new_row['주문상품'] = product
+                                # 첫 번째 상품: 원본 주문번호 유지
+                                # 두 번째 이후: 주문번호 + a, b, c...
+                                if i > 0:
+                                    suffix = chr(ord('a') + i - 1)  # a, b, c, d...
+                                    new_row['주문번호'] = f"{original_order_no}{suffix}"
                                 expanded_rows.append(new_row)
                     
                     df = pd.DataFrame(expanded_rows).reset_index(drop=True)
