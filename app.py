@@ -1060,7 +1060,7 @@ def main():
         naver_password = st.text_input(
             "🔐 파일 암호 (암호로 보호된 엑셀 파일인 경우)",
             type="password",
-            key="naver_password",
+            key="naver_password_input",  # 위젯용 키
             help="암호로 보호된 엑셀 파일의 경우 암호를 입력하세요. 암호가 없으면 비워두세요."
         )
         
@@ -1072,8 +1072,8 @@ def main():
         )
         if naver_files:
             uploaded_files_map['naver'] = naver_files
-            # 네이버 파일 비밀번호도 함께 저장
-            st.session_state['naver_password'] = naver_password if naver_password else None
+            # 네이버 파일 비밀번호를 다른 키로 저장 (위젯 키와 분리)
+            st.session_state['naver_file_password'] = naver_password if naver_password else None
             st.success(f"✅ {len(naver_files)}개 파일 업로드됨")
             if naver_password:
                 st.info(f"🔐 파일 암호가 설정되었습니다")
@@ -1101,7 +1101,7 @@ def main():
             for uploaded_file in files:
                 # 네이버 파일인 경우 비밀번호 전달
                 if platform == 'naver':
-                    naver_password = st.session_state.get('naver_password', None)
+                    naver_password = st.session_state.get('naver_file_password', None)
                     df = read_file(uploaded_file, password=naver_password)
                 else:
                     df = read_file(uploaded_file)
