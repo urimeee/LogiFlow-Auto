@@ -1,110 +1,48 @@
 """
-Google Sheets Integration Utilities (Service Account 인증)
+Google Sheets Integration Utilities (CSV Export 방식)
 Google Sheets에서 마스터 코드를 가져오고 DB에 저장/조회하는 유틸리티
 """
 import pandas as pd
+import requests
 import sqlite3
 import json
 from datetime import datetime
 import logging
-import streamlit as st
-import gspread
-from google.oauth2.service_account import Credentials
+from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
-# Google Sheets 설정
+# Google Sheets 설정 (공개 링크 - 뷰어 접근 가능)
 SHEET_ID = '1e7T7dANrJemFP1eouH02Wi4Ysoh08jmq77Rn_5pbzQs'
-GID = '1735735926'  # Sheet의 gid
-SHEET_NAME = None  # gid로 접근하므로 이름은 불필요
+SHEET_NAME = '상품 코드 최종(마스터 코드)'  # 한글/괄호 포함 - URL 인코딩 필요
+
+# CSV Export URL 생성 (sheet 파라미터 사용)
+SHEET_NAME_ENCODED = quote(SHEET_NAME)
+CSV_EXPORT_URL = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet={SHEET_NAME_ENCODED}'
 
 DB_PATH = '/home/user/webapp/master_codes.db'
 
-# Google Sheets API 스코프
-SCOPES = [
-    'https://www.googleapis.com/auth/spreadsheets.readonly',
-    'https://www.googleapis.com/auth/drive.readonly'
-]
-
-def get_gspread_client():
-    """
-    Service Account 인증으로 gspread 클라이언트 생성
-    Returns: gspread.Client 또는 None
-    """
-    try:
-        # Streamlit secrets에서 Service Account 정보 가져오기
-        if 'gcp_service_account' not in st.secrets:
-            logger.error("Service Account credentials not found in st.secrets")
-            return None
-        
-        # Service Account 인증 정보
-        service_account_info = dict(st.secrets['gcp_service_account'])
-        
-        # Credentials 생성
-        credentials = Credentials.from_service_account_info(
-            service_account_info,
-            scopes=SCOPES
-        )
-        
-        # gspread 클라이언트 생성
-        client = gspread.authorize(credentials)
-        logger.info("Successfully created gspread client with Service Account")
-        return client
-        
-    except Exception as e:
-        logger.error(f"Failed to create gspread client: {str(e)}")
-        return None
-
 def fetch_master_from_sheets():
     """
-    Google Sheets에서 마스터 코드 데이터를 가져옴 (Service Account 인증)
-    B열~F열 전체 데이터를 읽음
+    Google Sheets에서 마스터 코드 데이터를 가져옴 (CSV Export 방식)
+    공개 링크 - 뷰어 접근 가능, 인증 불필요
+    
     Returns: pandas DataFrame 또는 None
     """
     try:
-        logger.info(f"Fetching master code from Google Sheets: {SHEET_ID}")
+        logger.info(f"Fetching master code from Google Sheets: {CSV_EXPORT_URL}")
         
-        # gspread 클라이언트 생성
-        client = get_gspread_client()
-        if client is None:
-            logger.error("Failed to get gspread client")
-            return None
+        # CSV로 다운로드 (인증 불필요)
+        response = requests.get(CSV_EXPORT_URL, timeout=10)
+        response.raise_for_status()
         
-        # Spreadsheet 열기
-        spreadsheet = client.open_by_key(SHEET_ID)
-        
-        # gid로 워크시트 찾기
-        worksheet = None
-        for sheet in spreadsheet.worksheets():
-            if str(sheet.id) == str(GID):
-                worksheet = sheet
-                break
-        
-        if worksheet is None:
-            logger.error(f"Worksheet with gid {GID} not found")
-            return None
-        
-        logger.info(f"Found worksheet: {worksheet.title} (gid: {GID})")
-        
-        # 모든 데이터 가져오기
-        all_values = worksheet.get_all_values()
-        
-        if not all_values:
-            logger.warning("No data found in worksheet")
-            return None
-        
-        # DataFrame으로 변환 (첫 행을 헤더로 사용)
-        df = pd.DataFrame(all_values[1:], columns=all_values[0])
-        
-        # B열~F열만 선택 (열 이름으로)
-        # 실제 열 이름을 확인하여 필요한 열만 선택
-        logger.info(f"Available columns: {df.columns.tolist()}")
-        
-        # B열~F열은 인덱스 1~5 (0부터 시작)
-        # 또는 열 이름이 있다면 해당 이름으로 선택
-        # 여기서는 모든 열을 가져온 후 필요한 처리를 app.py에서 수행
+        # DataFrame으로 변환
+        from io import StringIO
+        df = pd.read_csv(StringIO(response.text))
         
         logger.info(f"Successfully fetched {len(df)} rows from Google Sheets")
+        logger.info(f"Columns: {df.columns.tolist()}")
+        
         return df
         
     except Exception as e:

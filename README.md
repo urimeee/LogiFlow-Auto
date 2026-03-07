@@ -1,4 +1,4 @@
-# 📦 물류 데이터 통합 시스템 v3.17
+# 📦 물류 데이터 통합 시스템 v3.18
 
 ## 프로젝트 개요
 **이름**: 물류 데이터 통합 시스템  
@@ -430,7 +430,37 @@ pm2 delete logistics-app
 
 ## 완료된 기능
 
-### v3.17 (2026-03-07) ✅ **최신 버전**
+### v3.18 (2026-03-07) ✅ **최신 버전**
+✅ **공개 Google Sheets 연동으로 복귀 - 인증 불필요**  
+  - **변경 사항**:
+    * Service Account 인증 방식 제거 (복잡도 감소)
+    * 공개 CSV Export URL 방식으로 복귀
+    * 인증 불필요 - 링크 공유만으로 접근 가능
+    * 탭 이름에 한글/괄호 포함 → `urllib.parse.quote`로 URL 인코딩 처리
+  - **sheets_utils.py 복원**:
+    * CSV Export URL: `https://docs.google.com/.../export?format=csv&sheet=상품 코드 최종(마스터 코드)`
+    * 탭 이름: `상품 코드 최종(마스터 코드)` (한글/괄호 자동 인코딩)
+    * gspread, google-auth 의존성 제거
+    * 간단한 `requests.get()` 호출로 데이터 로드
+  - **webhook_server.py 간소화**:
+    * Secret token 검증 제거 (공개 webhook)
+    * 단순 POST 엔드포인트로 변경
+  - **Google Apps Script 간소화**:
+    * `google_apps_script.js` (Service Account 버전 제거)
+    * 공개 Sheets 전용 스크립트로 변경
+    * B~F열 변경 감지 (onEdit 트리거)
+    * 인증 불필요 - 단순 webhook POST
+  - **문서 정리**:
+    * Service Account 관련 문서 모두 제거
+    * `GOOGLE_SHEETS_SETUP.md` - 공개 링크 버전으로 업데이트
+    * 설정 시간: 20분 → 5분으로 단축
+  - **장점**:
+    * ✅ 설정 간단 (Google Cloud Console 불필요)
+    * ✅ 인증 불필요 (링크 공유만 필요)
+    * ✅ 코드 간결 (의존성 감소)
+    * ✅ 유지보수 용이
+
+### v3.17 (2026-03-07)
 ✅ **Google Service Account 인증으로 전환 - 비공개 Sheets 실시간 연동**  
   - **구현 내용**:
     * Google Service Account 인증 방식으로 전환 (gspread + google-auth)

@@ -1,170 +1,252 @@
 /**
- * Google Apps Script - Streamlit Webhook Integration
+ * Google Apps Script - Sheets B~F열 변경 감지 및 Webhook 전송
+ * (공개 링크 버전 - 인증 불필요)
  * 
  * 설치 방법:
- * 1. Google Sheets 열기
- * 2. 확장 프로그램 > Apps Script
- * 3. 아래 코드 붙여넣기
- * 4. WEBHOOK_URL 수정 (실제 Streamlit 앱 URL + /webhook)
- * 5. 저장 후 onEdit 트리거 설정
+ * 1. Google Sheets 열기 → Extensions → Apps Script
+ * 2. 이 코드를 붙여넣기
+ * 3. WEBHOOK_URL 설정 (Streamlit 앱 URL)
+ * 4. setupTrigger() 실행하여 onEdit 트리거 등록
  */
 
 // ===== 설정 =====
-// Streamlit 앱의 Webhook URL (포트 5000)
-// 예: https://your-streamlit-app-url.com:5000/webhook
-const WEBHOOK_URL = 'https://5000-SANDBOX_ID.sandbox.novita.ai/webhook';
 
-// 감지할 열 범위 (B열~F열 = 2~6)
-const WATCH_COL_START = 2; // B열
-const WATCH_COL_END = 6;   // F열
+// Streamlit 웹훅 URL (SANDBOX_ID를 실제 값으로 변경하세요!)
+const WEBHOOK_URL = 'https://5000-ip2l928h0vug305w91va9-d0b9e1e2.sandbox.novita.ai/webhook';
 
-// 대상 시트 이름 (비워두면 모든 시트)
-const TARGET_SHEET_NAME = '';
+// 감지할 열 범위 (B~F열)
+const WATCH_COLUMN_START = 2;  // B열 = 2
+const WATCH_COLUMN_END = 6;    // F열 = 6
+
+// 대상 시트 이름 (선택사항 - 지정하지 않으면 모든 시트 감지)
+const TARGET_SHEET_NAME = '상품 코드 최종(마스터 코드)';
+
+// ===== 메인 함수 =====
 
 /**
  * onEdit 트리거 함수
- * B열~F열에 변경이 생기면 자동으로 실행됨
+ * Sheets의 B~F열이 변경되면 자동 실행
  */
 function onEdit(e) {
   try {
-    // 변경 정보 가져오기
+    // 이벤트 객체가 없으면 종료
+    if (!e) {
+      Logger.log('No edit event received');
+      return;
+    }
+    
+    const sheet = e.source.getActiveSheet();
     const range = e.range;
-    const sheet = range.getSheet();
-    const col = range.getColumn();
+    const column = range.getColumn();
     const row = range.getRow();
     
-    // 로그 출력
-    Logger.log('편집 감지: 시트=' + sheet.getName() + ', 행=' + row + ', 열=' + col);
+    Logger.log(`Edit detected: Sheet="${sheet.getName()}", Row=${row}, Column=${column}`);
     
-    // 대상 시트가 지정되어 있고, 다른 시트면 무시
+    // B~F열 범위 확인
+    if (column < WATCH_COLUMN_START || column > WATCH_COLUMN_END) {
+      Logger.log(`Column ${column} is outside watch range (${WATCH_COLUMN_START}-${WATCH_COLUMN_END})`);
+      return;
+    }
+    
+    // 대상 시트 이름 확인 (선택사항)
     if (TARGET_SHEET_NAME && sheet.getName() !== TARGET_SHEET_NAME) {
-      Logger.log('대상 시트가 아님: ' + sheet.getName());
+      Logger.log(`Sheet "${sheet.getName()}" does not match target "${TARGET_SHEET_NAME}"`);
       return;
     }
     
-    // B열~F열 범위 확인
-    if (col < WATCH_COL_START || col > WATCH_COL_END) {
-      Logger.log('감지 대상 열이 아님: 열=' + col);
-      return;
-    }
+    Logger.log(`✅ Change detected in watched columns (${WATCH_COLUMN_START}-${WATCH_COLUMN_END})`);
     
-    Logger.log('✅ B열~F열 변경 감지! Webhook 호출 시작...');
-    
-    // 전체 시트 데이터를 가져와서 전송
+    // 전체 시트 데이터를 웹훅으로 전송
     sendSheetDataToWebhook(sheet);
     
   } catch (error) {
-    Logger.log('❌ onEdit 오류: ' + error.toString());
+    Logger.log(`Error in onEdit: ${error.message}`);
+    Logger.log(error.stack);
   }
 }
 
 /**
- * 시트 데이터를 Webhook으로 전송
+ * 전체 시트 데이터를 Streamlit 웹훅으로 전송
+ * @param {Sheet} sheet - 데이터를 읽을 시트
  */
 function sendSheetDataToWebhook(sheet) {
   try {
-    // 전체 데이터 가져오기
+    Logger.log('Reading sheet data...');
+    
+    // 전체 데이터 읽기 (헤더 포함)
     const dataRange = sheet.getDataRange();
     const values = dataRange.getValues();
     
+    if (values.length === 0) {
+      Logger.log('No data in sheet');
+      return;
+    }
+    
     // 헤더와 데이터 분리
     const headers = values[0];
-    const rows = values.slice(1);
+    const dataRows = values.slice(1);
     
-    // JSON 배열로 변환
-    const jsonData = rows.map(row => {
-      const obj = {};
+    // JSON 배열로 변환 (헤더를 키로 사용)
+    const sheetData = dataRows.map(row => {
+      const rowObj = {};
       headers.forEach((header, index) => {
-        obj[header] = row[index];
+        rowObj[header] = row[index];
       });
-      return obj;
+      return rowObj;
     });
     
-    // JSON 문자열로 변환
-    const sheetData = JSON.stringify(jsonData);
+    Logger.log(`Prepared ${sheetData.length} rows for webhook`);
     
-    // Webhook 요청 보내기
+    // Webhook 페이로드 (인증 불필요)
+    const payload = {
+      sheet_data: sheetData,
+      timestamp: new Date().toISOString(),
+      sheet_name: sheet.getName()
+    };
+    
+    // HTTP POST 요청
     const options = {
       method: 'post',
       contentType: 'application/json',
-      payload: JSON.stringify({
-        sheet_data: sheetData,
-        sheet_name: sheet.getName(),
-        timestamp: new Date().toISOString()
-      }),
+      payload: JSON.stringify(payload),
       muteHttpExceptions: true
     };
     
-    Logger.log('Webhook 요청 시작: ' + WEBHOOK_URL);
-    Logger.log('전송 데이터 크기: ' + sheetData.length + ' bytes');
-    
+    Logger.log(`Sending webhook to ${WEBHOOK_URL}...`);
     const response = UrlFetchApp.fetch(WEBHOOK_URL, options);
     const responseCode = response.getResponseCode();
-    const responseBody = response.getContentText();
+    const responseText = response.getContentText();
     
     if (responseCode === 200) {
-      Logger.log('✅ Webhook 성공: ' + responseBody);
-      
-      // 성공 알림 (선택사항)
-      // SpreadsheetApp.getActiveSpreadsheet().toast(
-      //   '마스터 코드가 업데이트되었습니다',
-      //   '✅ 성공',
-      //   3
-      // );
+      Logger.log(`✅ Webhook sent successfully! Response: ${responseText}`);
     } else {
-      Logger.log('❌ Webhook 실패: HTTP ' + responseCode);
-      Logger.log('응답: ' + responseBody);
+      Logger.log(`❌ Webhook failed with status ${responseCode}: ${responseText}`);
     }
     
   } catch (error) {
-    Logger.log('❌ Webhook 전송 오류: ' + error.toString());
+    Logger.log(`❌ Error sending webhook: ${error.message}`);
+    Logger.log(error.stack);
+  }
+}
+
+// ===== 설정 및 테스트 함수 =====
+
+/**
+ * onEdit 트리거를 자동으로 설정
+ * 실행: Apps Script 편집기 상단에서 "setupTrigger" 선택 후 실행
+ */
+function setupTrigger() {
+  try {
+    // 기존 트리거 삭제
+    const triggers = ScriptApp.getProjectTriggers();
+    triggers.forEach(trigger => {
+      if (trigger.getHandlerFunction() === 'onEdit') {
+        ScriptApp.deleteTrigger(trigger);
+        Logger.log('Deleted existing onEdit trigger');
+      }
+    });
     
-    // 오류 알림 (선택사항)
-    // SpreadsheetApp.getActiveSpreadsheet().toast(
-    //   '마스터 코드 업데이트 실패: ' + error.toString(),
-    //   '❌ 오류',
-    //   5
-    // );
+    // 새 트리거 생성
+    ScriptApp.newTrigger('onEdit')
+      .forSpreadsheet(SpreadsheetApp.getActive())
+      .onEdit()
+      .create();
+    
+    Logger.log('✅ onEdit trigger created successfully!');
+    Logger.log('Now any edit in columns B-F will trigger the webhook.');
+    
+  } catch (error) {
+    Logger.log(`❌ Error creating trigger: ${error.message}`);
   }
 }
 
 /**
- * 수동 테스트 함수
- * Apps Script 편집기에서 실행 > testWebhook 선택하여 수동 테스트 가능
+ * 웹훅 연동 테스트 (수동 실행용)
+ * 실행: Apps Script 편집기 상단에서 "testWebhook" 선택 후 실행
  */
 function testWebhook() {
-  Logger.log('=== 수동 Webhook 테스트 시작 ===');
-  
-  const sheet = SpreadsheetApp.getActiveSheet();
-  sendSheetDataToWebhook(sheet);
-  
-  Logger.log('=== 테스트 완료 ===');
-  Logger.log('로그를 확인하세요: 보기 > 로그');
+  try {
+    Logger.log('=== Testing Webhook ===');
+    
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TARGET_SHEET_NAME);
+    if (!sheet) {
+      Logger.log(`❌ Sheet "${TARGET_SHEET_NAME}" not found!`);
+      return;
+    }
+    
+    Logger.log(`Testing with sheet: ${sheet.getName()}`);
+    
+    sendSheetDataToWebhook(sheet);
+    
+    Logger.log('=== Test Complete ===');
+    Logger.log('Check the Logs tab to see the result.');
+    
+  } catch (error) {
+    Logger.log(`❌ Test failed: ${error.message}`);
+    Logger.log(error.stack);
+  }
 }
 
 /**
- * 트리거 설정 함수
- * 처음 한 번만 실행하여 onEdit 트리거 자동 설정
+ * 스크립트 설정 확인
+ * 실행: Apps Script 편집기 상단에서 "checkConfiguration" 선택 후 실행
  */
-function setupTrigger() {
-  // 기존 트리거 삭제
+function checkConfiguration() {
+  Logger.log('=== Configuration Check ===');
+  Logger.log(`Webhook URL: ${WEBHOOK_URL}`);
+  Logger.log(`Watch columns: ${WATCH_COLUMN_START} to ${WATCH_COLUMN_END} (B-F)`);
+  Logger.log(`Target sheet: ${TARGET_SHEET_NAME || 'All sheets'}`);
+  
+  // 시트 존재 확인
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TARGET_SHEET_NAME);
+  if (sheet) {
+    Logger.log(`✅ Target sheet "${TARGET_SHEET_NAME}" exists`);
+  } else {
+    Logger.log(`❌ Target sheet "${TARGET_SHEET_NAME}" NOT found!`);
+  }
+  
+  // 트리거 확인
   const triggers = ScriptApp.getProjectTriggers();
-  triggers.forEach(trigger => {
-    if (trigger.getHandlerFunction() === 'onEdit') {
-      ScriptApp.deleteTrigger(trigger);
+  const onEditTriggers = triggers.filter(t => t.getHandlerFunction() === 'onEdit');
+  
+  if (onEditTriggers.length > 0) {
+    Logger.log(`✅ onEdit trigger is installed (${onEditTriggers.length} trigger(s))`);
+  } else {
+    Logger.log('❌ onEdit trigger is NOT installed!');
+    Logger.log('Run setupTrigger() to install it.');
+  }
+  
+  Logger.log('=== Check Complete ===');
+}
+
+/**
+ * 현재 시트의 B~F열 데이터 미리보기
+ * 실행: Apps Script 편집기 상단에서 "previewData" 선택 후 실행
+ */
+function previewData() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TARGET_SHEET_NAME);
+  
+  if (!sheet) {
+    Logger.log(`❌ Sheet "${TARGET_SHEET_NAME}" not found!`);
+    return;
+  }
+  
+  const dataRange = sheet.getDataRange();
+  const values = dataRange.getValues();
+  
+  Logger.log('=== Sheet Data Preview ===');
+  Logger.log(`Sheet: ${sheet.getName()}`);
+  Logger.log(`Total rows: ${values.length}`);
+  
+  if (values.length > 0) {
+    Logger.log('Headers:');
+    Logger.log(JSON.stringify(values[0]));
+    
+    if (values.length > 1) {
+      Logger.log('First data row:');
+      Logger.log(JSON.stringify(values[1]));
     }
-  });
+  }
   
-  // 새 트리거 생성
-  ScriptApp.newTrigger('onEdit')
-    .forSpreadsheet(SpreadsheetApp.getActive())
-    .onEdit()
-    .create();
-  
-  Logger.log('✅ onEdit 트리거가 설정되었습니다');
-  SpreadsheetApp.getActiveSpreadsheet().toast(
-    'B열~F열 변경 감지 트리거가 활성화되었습니다',
-    '✅ 설정 완료',
-    3
-  );
+  Logger.log('=== Preview Complete ===');
 }

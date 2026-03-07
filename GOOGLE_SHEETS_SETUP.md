@@ -1,301 +1,275 @@
-# 📊 Google Sheets 실시간 연동 설정 가이드
+# 📋 Google Sheets 실시간 동기화 설정 가이드
 
-## 🎯 목표
-
-Google Sheets의 마스터 코드(B열~F열)를 Streamlit 앱과 실시간으로 동기화합니다.
-
-- **앱 최초 실행 시**: Google Sheets에서 마스터 코드 자동 로드 → DB 저장
-- **Sheets 변경 시**: B~F열 변경 즉시 → 웹훅 호출 → 앱 자동 갱신
-- **Polling 없음**: 실시간 푸시 방식
+Google Sheets (공개 링크 - 뷰어 접근 가능) → Streamlit 마스터 코드 실시간 자동 동기화
 
 ---
 
-## 📋 사전 준비사항
+## 📋 개요
 
-1. **Google Sheets 공개 설정**
-   - Google Sheets를 열고
-   - 우측 상단 "공유" 버튼 클릭
-   - "링크가 있는 모든 사용자" 선택
-   - "뷰어" 권한으로 설정
-   
-2. **Sheet ID 확인**
-   - 현재 설정: `1e7T7dANrJemFP1eouH02Wi4Ysoh08jmq77Rn_5pbzQs`
-   - gid: `1735735926`
-   - URL 형식: `https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit?gid={GID}`
+이 가이드는 Google Sheets와 Streamlit 앱을 실시간으로 연동하는 방법을 설명합니다.
 
-3. **Streamlit 앱 URL 확인**
-   - Streamlit 앱 URL: `https://3000-{SANDBOX_ID}.sandbox.novita.ai`
-   - Webhook 서버 URL: `https://5000-{SANDBOX_ID}.sandbox.novita.ai`
+**연동 방식**:
+- **Sheets → Streamlit**: CSV Export URL (공개 링크, 인증 불필요)
+- **Sheets 변경 감지**: Google Apps Script의 onEdit 트리거
+- **실시간 업데이트**: Webhook POST 요청
+
+**소요 시간**: 약 5분
 
 ---
 
-## 🚀 Step 1: Streamlit 앱 설정 (이미 완료)
+## 🔧 Google Sheets 정보
 
-### 1-1. 서비스 시작
+### 시트 기본 정보
 
-```bash
-cd /home/user/webapp
+- **Sheets ID**: `1e7T7dANrJemFP1eouH02Wi4Ysoh08jmq77Rn_5pbzQs`
+- **탭 이름**: `상품 코드 최종(마스터 코드)`
+- **감지 대상 열**: B~F열 전체
 
-# PM2로 두 서비스 동시 실행
-pm2 start ecosystem.config.cjs
+### CSV Export URL
 
-# 상태 확인
-pm2 list
-
-# 로그 확인
-pm2 logs logistics-app --nostream
-pm2 logs webhook-server --nostream
+```
+https://docs.google.com/spreadsheets/d/1e7T7dANrJemFP1eouH02Wi4Ysoh08jmq77Rn_5pbzQs/export?format=csv&sheet=상품 코드 최종(마스터 코드)
 ```
 
-**실행되는 서비스**:
-- `logistics-app`: Streamlit 앱 (포트 3000)
-- `webhook-server`: Flask Webhook 서버 (포트 5000)
+**⚠️ 주의**: 탭 이름에 한글/괄호가 포함되므로 URL 인코딩 필요  
+→ `sheets_utils.py`에서 `urllib.parse.quote`로 자동 처리
 
-### 1-2. URL 확인
+---
 
-```bash
-# Streamlit 앱
-curl https://3000-{SANDBOX_ID}.sandbox.novita.ai
+## 📝 설정 단계
 
-# Webhook 서버 헬스체크
-curl https://5000-{SANDBOX_ID}.sandbox.novita.ai/health
+### Step 1: Google Apps Script 설정 (5분)
+
+#### 1-1. Apps Script 편집기 열기
+
+1. **Google Sheets 열기**
+   - https://docs.google.com/spreadsheets/d/1e7T7dANrJemFP1eouH02Wi4Ysoh08jmq77Rn_5pbzQs/edit
+
+2. **Apps Script 편집기 접속**
+   - 상단 메뉴: Extensions → Apps Script
+
+#### 1-2. 스크립트 코드 추가
+
+1. **코드 복사**
+   - `/home/user/webapp/google_apps_script.js` 파일 내용 복사
+
+2. **붙여넣기**
+   - Apps Script 편집기에 붙여넣기
+
+3. **WEBHOOK_URL 확인**
+   ```javascript
+   const WEBHOOK_URL = 'https://5000-ip2l928h0vug305w91va9-d0b9e1e2.sandbox.novita.ai/webhook';
+   ```
+
+4. **TARGET_SHEET_NAME 확인**
+   ```javascript
+   const TARGET_SHEET_NAME = '상품 코드 최종(마스터 코드)';
+   ```
+
+5. **저장**
+   - 프로젝트 이름: `Logistics Sheets Webhook` (예시)
+   - 💾 저장 아이콘 클릭
+
+#### 1-3. onEdit 트리거 설치
+
+1. **setupTrigger() 실행**
+   - Apps Script 편집기 상단 함수 드롭다운에서 `setupTrigger` 선택
+   - ▶ "실행" 버튼 클릭
+   - 권한 승인 (Google 계정 로그인 필요)
+     * "이 앱은 확인되지 않았습니다" → "고급" → "프로젝트로 이동(안전하지 않음)"
+     * "허용" 클릭
+
+2. **트리거 확인**
+   - 좌측 "트리거" (⏰ 시계 아이콘) 클릭
+   - `onEdit` 트리거가 표시되어야 함
+
+---
+
+### Step 2: 연동 테스트 (2분)
+
+#### 2-1. 설정 확인
+
+1. **checkConfiguration() 실행**
+   - 함수 드롭다운에서 `checkConfiguration` 선택 → 실행
+   - "실행 로그" 탭에서 결과 확인:
+     ```
+     ✅ Target sheet "상품 코드 최종(마스터 코드)" exists
+     ✅ onEdit trigger is installed
+     ```
+
+#### 2-2. 수동 웹훅 테스트
+
+1. **testWebhook() 실행**
+   - 함수 드롭다운에서 `testWebhook` 선택 → 실행
+   - "실행 로그" 탭에서 결과 확인:
+     ```
+     ✅ Webhook sent successfully!
+     ```
+
+2. **Streamlit 앱 확인**
+   - https://3000-ip2l928h0vug305w91va9-d0b9e1e2.sandbox.novita.ai/
+   - "✅ 마스터 코드가 업데이트되었습니다" 알림 표시
+
+#### 2-3. 실제 편집 테스트
+
+1. **Google Sheets에서 B~F열 값 변경**
+   - 아무 셀이나 선택하여 값 변경
+   - Enter 키 입력
+
+2. **Streamlit 앱 새로고침**
+   - 변경된 값이 즉시 반영되어야 함
+   - "✅ 마스터 코드가 업데이트되었습니다 (출처: webhook)" 알림 표시
+
+---
+
+## 🔧 데이터 흐름
+
+### 앱 최초 실행 시
+
+```
+Streamlit 앱 시작
+    ↓
+sheets_utils.py
+(CSV Export URL 호출)
+    ↓
+Google Sheets
+(공개 링크 - 인증 불필요)
+    ↓
+마스터 코드 로드
+    ↓
+master_codes.db 저장
+    ↓
+앱에서 사용
+```
+
+### Sheets 변경 시 실시간 업데이트
+
+```
+B~F열 값 변경
+    ↓
+onEdit 트리거 발동
+    ↓
+Google Apps Script
+(전체 데이터 읽기)
+    ↓
+POST /webhook
+    ↓
+webhook_server.py
+(Flask, port 5000)
+    ↓
+master_codes.db 업데이트
+    ↓
+Streamlit 앱 즉시 반영
 ```
 
 ---
 
-## 🔧 Step 2: Google Apps Script 설정
+## 📂 관련 파일
 
-### 2-1. Apps Script 편집기 열기
+### 백엔드 파일
+- `sheets_utils.py` - CSV Export URL로 Sheets 데이터 읽기
+- `webhook_server.py` - Webhook 서버 (Flask)
+- `master_codes.db` - SQLite 데이터베이스
 
-1. Google Sheets 열기
-2. 메뉴: **확장 프로그램** > **Apps Script**
-3. 새 프로젝트 생성 또는 기존 프로젝트 선택
+### 프론트엔드 파일
+- `app.py` - Streamlit 메인 앱
+- `google_apps_script.js` - Apps Script 코드
 
-### 2-2. 코드 붙여넣기
-
-`google_apps_script.js` 파일의 전체 내용을 복사하여 Apps Script 편집기에 붙여넣습니다.
-
-### 2-3. Webhook URL 수정
-
-**중요**: WEBHOOK_URL을 실제 서비스 URL로 변경해야 합니다!
-
-```javascript
-// 수정 전
-const WEBHOOK_URL = 'https://5000-SANDBOX_ID.sandbox.novita.ai/webhook';
-
-// 수정 후 (실제 SANDBOX_ID로 교체)
-const WEBHOOK_URL = 'https://5000-ip2l928h0vug305w91va9-d0b9e1e2.sandbox.novita.ai/webhook';
-```
-
-**SANDBOX_ID 확인 방법**:
-1. Streamlit 앱 URL에서 복사: `https://3000-{이부분}-{나머지}.sandbox.novita.ai`
-2. Webhook URL에 동일한 ID 사용: `https://5000-{같은ID}-{같은나머지}.sandbox.novita.ai/webhook`
-
-### 2-4. 프로젝트 저장
-
-- 프로젝트 이름: "Streamlit Webhook Integration" (원하는 이름)
-- 저장 버튼 클릭 (Ctrl+S)
-
-### 2-5. 트리거 설정
-
-**방법 1: 자동 설정 (권장)**
-
-1. Apps Script 편집기 상단 메뉴
-2. **실행** > **함수 선택** > `setupTrigger`
-3. **실행** 버튼 클릭
-4. 권한 승인 (처음 한 번만)
-5. "✅ 설정 완료" 알림 확인
-
-**방법 2: 수동 설정**
-
-1. 좌측 메뉴: **트리거** (시계 아이콘)
-2. **+ 트리거 추가** 버튼
-3. 설정:
-   - 실행할 함수: `onEdit`
-   - 이벤트 소스: `스프레드시트에서`
-   - 이벤트 유형: `수정 시`
-4. 저장
+### 설정 파일
+- `requirements.txt` - Python 패키지 의존성
+- `ecosystem.config.cjs` - PM2 설정
 
 ---
 
-## 🧪 Step 3: 테스트
+## ❓ 트러블슈팅
 
-### 3-1. 수동 Webhook 테스트
+### 문제 1: "401 Unauthorized" 또는 "403 Forbidden"
 
-Apps Script 편집기에서:
+**증상**: CSV Export URL 호출 시 에러
 
-1. **실행** > **함수 선택** > `testWebhook`
-2. **실행** 버튼 클릭
-3. 로그 확인: **보기** > **로그** (Ctrl+Enter)
-
-**예상 로그**:
-```
-=== 수동 Webhook 테스트 시작 ===
-Webhook 요청 시작: https://5000-...
-전송 데이터 크기: 1234 bytes
-✅ Webhook 성공: {"status":"success",...}
-=== 테스트 완료 ===
-```
-
-### 3-2. 실제 편집 테스트
-
-1. Google Sheets로 돌아가기
-2. **B열~F열** 중 아무 셀이나 수정
-   - 예: B2 셀의 값을 변경
-3. Enter 키를 눌러 저장
-4. Apps Script 로그 확인 (1~2초 후)
-   - 메뉴: **확장 프로그램** > **Apps Script** > **보기** > **로그**
-
-**예상 로그**:
-```
-편집 감지: 시트=시트1, 행=2, 열=2
-✅ B열~F열 변경 감지! Webhook 호출 시작...
-Webhook 요청 시작: https://5000-...
-✅ Webhook 성공: {"status":"success",...}
-```
-
-### 3-3. Streamlit 앱 확인
-
-1. Streamlit 앱 새로고침
-2. 마스터 코드 업데이트 알림 확인:
-   - "✅ {날짜} 마스터 코드가 업데이트되었습니다 (출처: Google Sheets)"
-
----
-
-## 🔍 트러블슈팅
-
-### ❌ "Webhook 실패: HTTP 401" 또는 "403"
-
-**원인**: Webhook 서버가 실행 중이지 않거나 URL이 잘못됨
+**원인**: Sheets가 비공개로 설정됨
 
 **해결**:
-```bash
-# 서비스 상태 확인
-pm2 list
-
-# webhook-server가 없으면 시작
-pm2 start ecosystem.config.cjs
-
-# URL 접근 테스트
-curl https://5000-{SANDBOX_ID}.sandbox.novita.ai/health
-```
-
-### ❌ "Failed to fetch from Google Sheets: 401 Unauthorized"
-
-**원인**: Google Sheets가 비공개 상태
-
-**해결**:
 1. Google Sheets 열기
-2. 우측 상단 "공유" 버튼
+2. 우측 상단 "공유" 버튼 클릭
 3. "링크가 있는 모든 사용자" → "뷰어" 권한 설정
-4. "완료" 클릭
+4. "링크 복사" 클릭하여 공개 링크 확인
 
-### ❌ Apps Script에서 onEdit이 실행되지 않음
+### 문제 2: Webhook이 호출되지 않음
 
-**원인**: 트리거가 설정되지 않음
+**증상**: Sheets에서 값을 변경해도 Streamlit 앱에 반영 안 됨
 
 **해결**:
-1. Apps Script 편집기 > 좌측 메뉴 > **트리거** (시계 아이콘)
-2. `onEdit` 트리거가 있는지 확인
-3. 없으면 `setupTrigger` 함수 실행 또는 수동으로 트리거 추가
+1. **트리거 확인**:
+   - Apps Script → 좌측 "트리거" 클릭
+   - `onEdit` 트리거가 있는지 확인
+   - 없으면 `setupTrigger()` 재실행
 
-### ❌ "감지 대상 열이 아님: 열=1" (A열 변경)
+2. **WEBHOOK_URL 확인**:
+   - Apps Script 코드의 `WEBHOOK_URL`이 올바른지 확인
+   - 현재: `https://5000-ip2l928h0vug305w91va9-d0b9e1e2.sandbox.novita.ai/webhook`
 
-**정상**: A열은 감지 대상이 아닙니다. B~F열만 감지합니다.
+3. **Apps Script 로그 확인**:
+   - Apps Script → 좌측 "실행" 클릭
+   - 최근 실행 기록에서 에러 확인
 
-**확인**: B열~F열(2~6번 열) 중 하나를 수정하세요.
+4. **Webhook 서버 상태 확인**:
+   ```bash
+   curl https://5000-ip2l928h0vug305w91va9-d0b9e1e2.sandbox.novita.ai/health
+   ```
+   응답: `{"status":"ok","service":"webhook_server"}`
 
----
+### 문제 3: 탭 이름이 다름
 
-## 📊 데이터 흐름
+**증상**: `checkConfiguration()`에서 "Target sheet NOT found"
 
-```
-┌─────────────────┐
-│ Google Sheets   │
-│ (B열~F열 변경)  │
-└────────┬────────┘
-         │
-         ↓ onEdit 트리거
-         │
-┌────────┴────────┐
-│ Apps Script     │
-│ sendWebhook()   │
-└────────┬────────┘
-         │
-         ↓ POST /webhook
-         │
-┌────────┴────────┐
-│ Flask Server    │
-│ (포트 5000)     │
-└────────┬────────┘
-         │
-         ↓ SQLite DB 저장
-         │
-┌────────┴────────┐
-│ master_codes DB │
-│ (최신 데이터)   │
-└────────┬────────┘
-         │
-         ↓ load_master_from_db()
-         │
-┌────────┴────────┐
-│ Streamlit App   │
-│ (포트 3000)     │
-└─────────────────┘
-```
+**해결**:
+1. Google Sheets에서 탭 이름 확인
+2. Apps Script 코드의 `TARGET_SHEET_NAME` 수정
+3. 저장 후 트리거 재설치
 
----
+### 문제 4: PM2 프로세스가 죽음
 
-## 🎯 핵심 포인트
+**증상**: 앱이 접속되지 않음
 
-1. **두 개의 서버 실행 필요**:
-   - Streamlit (포트 3000): 사용자 인터페이스
-   - Flask (포트 5000): Webhook 수신
-
-2. **Polling 없음**:
-   - Google Sheets 변경 → 즉시 푸시
-   - 서버는 대기만 하고 주기적 확인 안 함
-
-3. **B~F열만 감지**:
-   - A열이나 G열 이상은 감지 안 함
-   - 필요시 Apps Script의 `WATCH_COL_START`, `WATCH_COL_END` 수정
-
-4. **DB 기반 저장**:
-   - 최신 1개만 유지
-   - 앱 재시작 시에도 데이터 유지
-
----
-
-## 📝 관련 파일
-
-- `webhook_server.py`: Flask Webhook 서버
-- `sheets_utils.py`: Google Sheets 연동 유틸리티
-- `google_apps_script.js`: Google Apps Script 코드
-- `ecosystem.config.cjs`: PM2 설정 (두 서비스 포함)
-- `master_codes.db`: SQLite 데이터베이스 (자동 생성)
-
----
-
-## 🔄 서비스 관리 명령어
-
+**해결**:
 ```bash
-# 서비스 시작
-pm2 start ecosystem.config.cjs
-
-# 서비스 재시작
-pm2 restart all
-
-# 서비스 중지
-pm2 stop all
-
-# 로그 확인
-pm2 logs logistics-app
-pm2 logs webhook-server
-
-# 서비스 삭제
-pm2 delete all
+pm2 list  # 프로세스 상태 확인
+pm2 logs --nostream  # 에러 로그 확인
+pm2 restart all  # 재시작
 ```
 
 ---
 
-**문의**: 설정 중 문제가 발생하면 `pm2 logs` 명령어로 로그를 확인하세요.
+## ✅ 설정 완료 체크리스트
+
+### Google Apps Script
+- [ ] `google_apps_script.js` 코드 붙여넣기 완료
+- [ ] `WEBHOOK_URL` 확인 완료
+- [ ] `TARGET_SHEET_NAME` 확인 완료
+- [ ] 프로젝트 저장 완료
+- [ ] `setupTrigger()` 실행 완료
+- [ ] 트리거 탭에서 `onEdit` 확인 완료
+
+### 테스트
+- [ ] `checkConfiguration()` 실행 → 모두 ✅
+- [ ] `testWebhook()` 실행 → "Webhook sent successfully"
+- [ ] Sheets B~F열 값 변경 → Streamlit 앱 즉시 반영
+- [ ] Webhook 서버 health check → `{"status":"ok"}`
+
+---
+
+## 🎯 다음 단계
+
+설정이 완료되면:
+
+1. Google Sheets B~F열 값 변경
+2. Streamlit 앱에 즉시 반영 확인
+3. 정상 동작하면 실제 운영 시작!
+
+문제가 발생하면 위 트러블슈팅 섹션 참조.
+
+---
+
+**업데이트**: 2026-03-07  
+**버전**: v3.18 (공개 링크 버전)
