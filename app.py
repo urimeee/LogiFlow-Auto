@@ -5,10 +5,21 @@ import io
 import chardet
 import msoffcrypto
 from difflib import SequenceMatcher
+import os
+from dotenv import load_dotenv
+
+# 환경변수 로드 (.env 파일에서)
+load_dotenv()
+
+# 환경변수에서 설정값 가져오기
+APP_NAME = os.getenv('APP_NAME', '물류 데이터 통합 시스템')
+APP_VERSION = os.getenv('APP_VERSION', '3.12')
+MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', '200'))
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
 # 페이지 설정
 st.set_page_config(
-    page_title="물류 데이터 통합 시스템",
+    page_title=APP_NAME,
     page_icon="📦",
     layout="wide"
 )
