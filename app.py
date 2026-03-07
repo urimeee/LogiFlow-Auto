@@ -222,6 +222,57 @@ def load_master_code_data(master_file):
         return None
 
 
+def ensure_unique_order_numbers(df, order_col='쇼핑몰 주문번호'):
+    """
+    주문번호 중복 제거 함수
+    
+    동일한 주문번호가 여러 개 있을 경우, 두 번째부터 접미사 추가
+    예시:
+    - 20260225-83316T835
+    - 20260225-83316T835  → 20260225-83316T835a
+    - 20260225-83316T835  → 20260225-83316T835b
+    """
+    if order_col not in df.columns:
+        return df
+    
+    # 주문번호별로 카운트
+    order_counts = {}
+    new_order_numbers = []
+    
+    for order_no in df[order_col]:
+        if pd.isna(order_no):
+            new_order_numbers.append(order_no)
+            continue
+        
+        order_no_str = str(order_no)
+        
+        # 처음 등장하는 주문번호
+        if order_no_str not in order_counts:
+            order_counts[order_no_str] = 0
+            new_order_numbers.append(order_no_str)
+        else:
+            # 이미 등장한 주문번호 - 접미사 추가
+            order_counts[order_no_str] += 1
+            suffix = chr(ord('a') + order_counts[order_no_str] - 1)  # a, b, c...
+            new_order_numbers.append(f"{order_no_str}{suffix}")
+    
+    # 새로운 주문번호로 교체
+    df[order_col] = new_order_numbers
+    
+    return df
+
+
+def load_master_code_data(master_file):
+    """물류_코드명 마스터 데이터 로드"""
+    try:
+        df = pd.read_excel(master_file)
+        st.success(f"✅ 마스터 코드 데이터 로드 완료: {len(df)}개 항목")
+        return df
+    except Exception as e:
+        st.error(f"❌ 마스터 코드 데이터 로드 실패: {str(e)}")
+        return None
+
+
 def match_product_code(row, master_df, platform, code_col=None, name_col=None, option_col=None):
     """
     주문 데이터와 마스터 코드 매칭 (플랫폼별 처리)
@@ -631,6 +682,9 @@ def convert_to_3pl_format(df, master_df, platform):
     output_df['매칭 방법'] = match_df['매칭 방법']
     output_df['확인 필요'] = match_df['확인 필요']
     
+    # 주문번호 중복 제거 (접미사 자동 추가)
+    output_df = ensure_unique_order_numbers(output_df, order_col='쇼핑몰 주문번호')
+    
     return output_df
 
 
@@ -680,8 +734,8 @@ def read_file(uploaded_file):
                             for i, product in enumerate(products):
                                 new_row = row.copy()
                                 new_row['주문상품'] = product
-                                # 첫 번째 상품: 원본 주문번호 유지
-                                # 두 번째 이후: 주문번호 + a, b, c...
+                                # 모든 상품에 접미사 추가 (중복 방지)
+                                # 첫 번째: 원본 유지, 두 번째: a, 세 번째: b...
                                 if i > 0:
                                     suffix = chr(ord('a') + i - 1)  # a, b, c, d...
                                     new_row['주문번호'] = f"{original_order_no}{suffix}"
