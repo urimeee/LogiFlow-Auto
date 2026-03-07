@@ -583,10 +583,14 @@ def convert_to_3pl_format(df, master_df, platform):
     
     # 8. 수취인 전화[안심 번호] (수취인 핸드폰과 동일)
     phone = None
-    for col in ['핸드폰', '수령인휴대폰', '주문자핸드폰', '받는분.전화번호', '수취인전화번호']:
-        if col in result_df.columns:
-            phone = result_df[col]
-            break
+    # 네이버 파일 특화 매핑
+    if platform == 'naver' and '수취인연락처1' in result_df.columns:
+        phone = result_df['수취인연락처1']
+    else:
+        for col in ['핸드폰', '수령인휴대폰', '주문자핸드폰', '받는분.전화번호', '수취인전화번호']:
+            if col in result_df.columns:
+                phone = result_df[col]
+                break
     output_df['수취인 전화[안심 번호]'] = phone
     
     # 9. 수취인 전화번호 (수취인 핸드폰과 동일)
@@ -595,13 +599,26 @@ def convert_to_3pl_format(df, master_df, platform):
     # 10. 수취인 건물 관리번호 (공란)
     output_df['수취인 건물 관리번호'] = [''] * n_rows
     
-    # 11. 주문자 명 (수취인 명과 동일)
+    # 11. 주문자 명 (네이버는 구매자명, 다른 플랫폼은 수취인 명과 동일)
     recipient_name = None
-    for col in ['수령인', '받는사람', '주문자', '받는분.이름', '수취인이름']:
-        if col in result_df.columns:
-            recipient_name = result_df[col]
-            break
-    output_df['주문자 명'] = recipient_name
+    orderer_name = None
+    
+    # 네이버 파일 특화 매핑
+    if platform == 'naver':
+        # 네이버: 수취인명과 구매자명 구분
+        if '수취인명' in result_df.columns:
+            recipient_name = result_df['수취인명']
+        if '구매자명' in result_df.columns:
+            orderer_name = result_df['구매자명']
+    else:
+        # 다른 플랫폼: 수취인명 = 주문자명
+        for col in ['수령인', '받는사람', '주문자', '받는분.이름', '수취인이름']:
+            if col in result_df.columns:
+                recipient_name = result_df[col]
+                break
+        orderer_name = recipient_name  # 다른 플랫폼은 수취인명과 동일
+    
+    output_df['주문자 명'] = orderer_name if orderer_name is not None else recipient_name
     
     # 12. 주문자 이메일
     output_df['주문자 이메일'] = ['AA@aa.com'] * n_rows
@@ -643,6 +660,9 @@ def convert_to_3pl_format(df, master_df, platform):
     output_df['쇼핑몰 주문번호'] = result_df['주문번호']
     
     # 25. 수취인 명
+    # 네이버는 위에서 이미 설정됨, 다른 플랫폼도 위에서 설정됨
+    if recipient_name is None and platform == 'naver' and '수취인명' in result_df.columns:
+        recipient_name = result_df['수취인명']
     output_df['수취인 명'] = recipient_name
     
     # 26. 수취인 핸드폰
@@ -650,10 +670,14 @@ def convert_to_3pl_format(df, master_df, platform):
     
     # 27. 수취인 기본 주소
     address = None
-    for col in ['주소', '배송주소', '주문자주소', '받는분.통합주소', '수취인 주소']:
-        if col in result_df.columns:
-            address = result_df[col]
-            break
+    # 네이버 파일 특화 매핑
+    if platform == 'naver' and '통합배송지' in result_df.columns:
+        address = result_df['통합배송지']
+    else:
+        for col in ['주소', '배송주소', '주문자주소', '받는분.통합주소', '수취인 주소']:
+            if col in result_df.columns:
+                address = result_df[col]
+                break
     output_df['수취인 기본 주소'] = address
     
     # 28. 쇼핑몰 상품 코드 (매칭 결과에서)
@@ -683,6 +707,15 @@ def convert_to_3pl_format(df, master_df, platform):
         output_df['배송 메세지'] = ['벨x, 문자'] * n_rows
     else:
         message = None
+        # 네이버 파일 특화 매핑
+        if platform == 'naver' and '배송메세지' in result_df.columns:
+            message = result_df['배송메세지']
+        else:
+            for col in ['비고', '배송메세지', '요청사항']:
+                if col in result_df.columns:
+                    message = result_df[col]
+                    break
+        output_df['배송 메세지'] = message
         for col in ['비고', '배송메세지', '요청사항', '배송메세지']:
             if col in result_df.columns:
                 message = result_df[col]
@@ -851,12 +884,18 @@ def read_file(uploaded_file, password=None):
                         decrypted.seek(0)
                         
                         # 복호화된 파일 읽기
+                        # 네이버(스마트스토어) 파일은 skiprows=1 필요
+                        skiprows = 1 if '스마트스토어' in uploaded_file.name else 0
+                        
                         try:
-                            df = pd.read_excel(decrypted, engine='openpyxl')
-                            st.success(f"✅ {uploaded_file.name} 파일 읽기 완료 (암호 해제됨)")
+                            df = pd.read_excel(decrypted, engine='openpyxl', skiprows=skiprows)
+                            if skiprows > 0:
+                                st.success(f"✅ {uploaded_file.name} 파일 읽기 완료 (암호 해제됨, 헤더 행 {skiprows}개 건너뜀)")
+                            else:
+                                st.success(f"✅ {uploaded_file.name} 파일 읽기 완료 (암호 해제됨)")
                             return df
                         except:
-                            df = pd.read_excel(decrypted, engine='xlrd')
+                            df = pd.read_excel(decrypted, engine='xlrd', skiprows=skiprows)
                             st.success(f"✅ {uploaded_file.name} 파일 읽기 완료 (XLS, 암호 해제됨)")
                             return df
                             
