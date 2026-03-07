@@ -692,7 +692,7 @@ pm2 delete logistics-app
 MIT License
 
 ## 개발자
-물류 데이터 통합 시스템 개발팀
+Arooo Operator 김유림
 
 ---
 
