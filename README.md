@@ -1,4 +1,4 @@
-# 📦 물류 데이터 통합 시스템 v3.16
+# 📦 물류 데이터 통합 시스템 v3.17
 
 ## 프로젝트 개요
 **이름**: 물류 데이터 통합 시스템  
@@ -430,7 +430,45 @@ pm2 delete logistics-app
 
 ## 완료된 기능
 
-### v3.16 (2026-03-07) ✅ **최신 버전**
+### v3.17 (2026-03-07) ✅ **최신 버전**
+✅ **Google Service Account 인증으로 전환 - 비공개 Sheets 실시간 연동**  
+  - **구현 내용**:
+    * Google Service Account 인증 방식으로 전환 (gspread + google-auth)
+    * 비공개 Google Sheets 접근 가능 (Service Account JSON 키)
+    * `st.secrets`로 인증 정보 안전하게 관리
+    * B~F열 전체 데이터 읽기 (gid 기반)
+    * Webhook Secret Token 검증 추가 (무단 호출 방지)
+  - **sheets_utils.py 업데이트**:
+    * CSV export 방식 → Service Account 인증 방식
+    * gspread로 직접 Sheets API 호출
+    * 앱 최초 실행 시 자동으로 Sheets에서 마스터 코드 로드
+  - **webhook_server.py 업데이트**:
+    * Secret token 검증 로직 추가
+    * 인증 실패 시 401 Unauthorized 응답
+    * Token 설정 상태를 /health 엔드포인트에 포함
+  - **Google Apps Script 코드 추가**:
+    * `google_apps_script_service_account.js`
+    * B~F열 변경 감지 (onEdit 트리거)
+    * Webhook POST 요청 (secret token 포함)
+    * 설정 및 테스트 함수 포함 (setupTrigger, testWebhook, checkConfiguration)
+  - **설정 가이드 문서 작성**:
+    * `GOOGLE_SERVICE_ACCOUNT_SETUP.md` - Service Account 발급 가이드
+    * `SETUP_GUIDE.md` - 전체 설정 단계별 가이드
+    * `.streamlit/secrets.toml.example` - Secrets 템플릿
+    * `SERVICE_ACCOUNT_SUMMARY.md` - 완료 요약 문서
+  - **보안 강화**:
+    * `.gitignore`에 Service Account JSON 파일 추가
+    * secrets.toml은 절대 커밋 안 됨
+    * 모든 인증 정보는 st.secrets 또는 환경변수로만 관리
+  - **요구사항 충족**:
+    * ✅ 비공개 Google Sheets 접근 (Service Account)
+    * ✅ 앱 최초 실행 시 Sheets에서 마스터 코드 가져오기
+    * ✅ Sheets B~F열 변경 시 즉시 Streamlit 앱에 반영 (webhook)
+    * ✅ Polling 방식 사용하지 않음
+    * ✅ Secret token으로 webhook 보안
+    * ✅ 인증 정보는 코드에 하드코딩 금지
+
+### v3.16 (2026-03-07)
 ✅ **쇼핑몰 묶음 배송 번호 동기화 이슈 완전 해결**  
   - **문제**: 쇼핑몰 주문번호에는 접미사(a, b, c...)가 정상 추가되었지만, 쇼핑몰 묶음 배송 번호에는 적용되지 않음
   - **원인**: 쇼핑몰 묶음 배송 번호를 초기에 원본 주문번호로 설정하고, 접미사 추가 후 업데이트하지 않음
