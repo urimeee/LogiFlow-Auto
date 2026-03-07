@@ -14,6 +14,20 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       interpreter: 'none'
+    },
+    {
+      name: 'webhook-server',
+      script: 'python',
+      args: 'webhook_server.py',
+      cwd: '/home/user/webapp',
+      env: {
+        FLASK_APP: 'webhook_server.py',
+        FLASK_ENV: 'production'
+      },
+      watch: false,
+      instances: 1,
+      exec_mode: 'fork',
+      interpreter: 'none'
     }
   ]
 }
