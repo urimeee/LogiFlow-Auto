@@ -696,6 +696,9 @@ def convert_to_3pl_format(df, master_df, platform):
     # 주문번호 중복 제거 (접미사 자동 추가)
     output_df = ensure_unique_order_numbers(output_df, order_col='쇼핑몰 주문번호')
     
+    # 쇼핑몰 묶음 배송 번호를 쇼핑몰 주문번호와 동일하게 업데이트
+    output_df['쇼핑몰 묶음 배송 번호'] = output_df['쇼핑몰 주문번호']
+    
     return output_df
 
 
