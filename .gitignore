@@ -105,3 +105,8 @@ config.json
 *.pem
 *.key
 *.cert
+
+# Google Service Account (추가)
+service_account.json
+*-service-account.json
+gcp_*.json
