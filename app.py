@@ -13,7 +13,7 @@ load_dotenv()
 
 # 환경변수에서 설정값 가져오기
 APP_NAME = os.getenv('APP_NAME', '물류 데이터 통합 시스템')
-APP_VERSION = os.getenv('APP_VERSION', '3.12')
+APP_VERSION = os.getenv('APP_VERSION', '3.16')
 MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', '200'))
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
@@ -566,8 +566,8 @@ def convert_to_3pl_format(df, master_df, platform):
     # 2. 쇼핑몰 이름 (매칭 결과에서 가져옴 - 한글 이름)
     output_df['쇼핑몰 이름'] = match_df['플랫폼']
     
-    # 3. 쇼핑몰 묶음 배송 번호 (주문번호와 동일)
-    output_df['쇼핑몰 묶음 배송 번호'] = result_df['주문번호']
+    # 3. 쇼핑몰 묶음 배송 번호 (나중에 쇼핑몰 주문번호와 동일하게 설정)
+    # output_df['쇼핑몰 묶음 배송 번호'] = result_df['주문번호']  # 중복 방지를 위해 주석 처리
     
     # 4. 묶음배송유무
     output_df['묶음배송유무'] = ['유'] * n_rows
@@ -729,7 +729,8 @@ def convert_to_3pl_format(df, master_df, platform):
     # 주문번호 중복 제거 (접미사 자동 추가)
     output_df = ensure_unique_order_numbers(output_df, order_col='쇼핑몰 주문번호')
     
-    # 쇼핑몰 묶음 배송 번호를 쇼핑몰 주문번호와 동일하게 업데이트
+    # CRITICAL: 쇼핑몰 묶음 배송 번호를 쇼핑몰 주문번호와 동일하게 설정
+    # 주문번호에 접미사가 추가된 후 설정하여 항상 동일하게 유지
     output_df['쇼핑몰 묶음 배송 번호'] = output_df['쇼핑몰 주문번호']
     
     return output_df
