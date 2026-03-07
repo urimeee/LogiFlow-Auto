@@ -702,8 +702,13 @@ def convert_to_3pl_format(df, master_df, platform):
     return output_df
 
 
-def read_file(uploaded_file):
-    """파일을 읽어서 DataFrame으로 반환 (CSV, Excel 지원)"""
+def read_file(uploaded_file, password=None):
+    """파일을 읽어서 DataFrame으로 반환 (CSV, Excel 지원)
+    
+    Args:
+        uploaded_file: Streamlit UploadedFile 객체
+        password: 엑셀 파일 암호 (선택사항)
+    """
     try:
         file_extension = uploaded_file.name.lower().split('.')[-1]
         
@@ -805,15 +810,29 @@ def read_file(uploaded_file):
                         # 여러 방법으로 복호화 시도
                         decryption_success = False
                         
-                        # 방법 1: 빈 비밀번호
-                        try:
-                            office_file.load_key(password='')
-                            office_file.decrypt(decrypted)
-                            decryption_success = True
-                        except:
-                            pass
+                        # 방법 1: 사용자가 제공한 비밀번호
+                        if password:
+                            try:
+                                office_file.load_key(password=password)
+                                office_file.decrypt(decrypted)
+                                decryption_success = True
+                                st.success(f"🔓 제공된 암호로 파일 복호화 성공")
+                            except Exception as pwd_err:
+                                st.warning(f"⚠️ 제공된 암호로 복호화 실패: {str(pwd_err)}")
                         
-                        # 방법 2: VelvetSweatshop 알고리즘
+                        # 방법 2: 빈 비밀번호
+                        if not decryption_success:
+                            try:
+                                file_stream.seek(0)
+                                office_file = msoffcrypto.OfficeFile(file_stream)
+                                decrypted = io.BytesIO()
+                                office_file.load_key(password='')
+                                office_file.decrypt(decrypted)
+                                decryption_success = True
+                            except:
+                                pass
+                        
+                        # 방법 3: VelvetSweatshop 알고리즘
                         if not decryption_success:
                             try:
                                 file_stream.seek(0)
@@ -826,7 +845,8 @@ def read_file(uploaded_file):
                                 pass
                         
                         if not decryption_success:
-                            raise Exception("복호화 실패: 비밀번호가 필요합니다")
+                            error_msg = "복호화 실패: 올바른 비밀번호를 입력해주세요" if password else "복호화 실패: 비밀번호가 필요합니다"
+                            raise Exception(error_msg)
                         
                         decrypted.seek(0)
                         
@@ -1035,6 +1055,15 @@ def main():
     
     with tab4:
         st.subheader("네이버 주문 파일")
+        
+        # 네이버 파일 암호 입력 필드
+        naver_password = st.text_input(
+            "🔐 파일 암호 (암호로 보호된 엑셀 파일인 경우)",
+            type="password",
+            key="naver_password",
+            help="암호로 보호된 엑셀 파일의 경우 암호를 입력하세요. 암호가 없으면 비워두세요."
+        )
+        
         naver_files = st.file_uploader(
             "네이버 CSV/XLSX 파일을 업로드하세요",
             type=['csv', 'xlsx', 'xls'],
@@ -1043,7 +1072,11 @@ def main():
         )
         if naver_files:
             uploaded_files_map['naver'] = naver_files
+            # 네이버 파일 비밀번호도 함께 저장
+            st.session_state['naver_password'] = naver_password if naver_password else None
             st.success(f"✅ {len(naver_files)}개 파일 업로드됨")
+            if naver_password:
+                st.info(f"🔐 파일 암호가 설정되었습니다")
     
     # 업로드된 파일이 있는지 확인
     if not uploaded_files_map:
@@ -1066,7 +1099,12 @@ def main():
     with st.spinner("모든 플랫폼 파일을 처리하는 중..."):
         for platform, files in uploaded_files_map.items():
             for uploaded_file in files:
-                df = read_file(uploaded_file)
+                # 네이버 파일인 경우 비밀번호 전달
+                if platform == 'naver':
+                    naver_password = st.session_state.get('naver_password', None)
+                    df = read_file(uploaded_file, password=naver_password)
+                else:
+                    df = read_file(uploaded_file)
                 
                 if df is not None:
                     converted_df = convert_to_3pl_format(df, master_df, platform)
