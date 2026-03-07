@@ -3,12 +3,70 @@
 ## 프로젝트 개요
 **이름**: 물류 데이터 통합 시스템  
 **목적**: 물류 현장에서 발생하는 제각각인 엑셀/CSV 데이터를 하나로 통합하고, 3PL 배송 양식으로 자동 변환  
-**기술 스택**: Python, Streamlit, Pandas, OpenPyXL, XlsxWriter
+**기술 스택**: Python, Streamlit, Pandas, OpenPyXL, XlsxWriter  
+**GitHub**: https://github.com/urimeee/LogiFlow-Auto
 
 ## 🌐 웹 애플리케이션 URL
 **실행 중인 서비스**: https://3000-ip2l928h0vug305w91va9-d0b9e1e2.sandbox.novita.ai
 
 위 URL로 접속하여 바로 사용하실 수 있습니다!
+
+## 🚀 설치 및 실행
+
+### 1. 저장소 클론
+```bash
+git clone https://github.com/urimeee/LogiFlow-Auto.git
+cd LogiFlow-Auto
+```
+
+### 2. 가상환경 생성 및 활성화 (선택사항)
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# 또는
+venv\Scripts\activate  # Windows
+```
+
+### 3. 의존성 설치
+```bash
+pip install -r requirements.txt
+```
+
+### 4. 환경변수 설정
+```bash
+# .env.example 파일을 .env로 복사
+cp .env.example .env
+
+# .env 파일 편집 (필요한 경우)
+# API_KEY=your_api_key_here
+```
+
+### 5. 애플리케이션 실행
+```bash
+streamlit run app.py
+```
+
+브라우저에서 `http://localhost:8501`로 접속하세요.
+
+## 🔒 보안 및 환경변수
+
+### 환경변수 파일 (.env)
+- **절대 GitHub에 커밋하지 마세요!**
+- `.env.example` 템플릿을 참고하여 `.env` 파일 생성
+- API 키, 비밀번호 등 민감한 정보는 `.env`에만 저장
+
+### 지원하는 환경변수
+```bash
+# 애플리케이션 설정
+APP_NAME=물류 데이터 통합 시스템
+APP_VERSION=3.12
+MAX_UPLOAD_SIZE=200
+LOG_LEVEL=INFO
+
+# 향후 확장 가능 (API 키 등)
+# API_KEY=your_api_key_here
+# SECRET_KEY=your_secret_key_here
+```
 
 ## 📋 32개 표준 3PL 배송 컬럼 (v3.4+)
 
