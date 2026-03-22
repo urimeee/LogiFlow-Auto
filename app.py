@@ -13,7 +13,7 @@ load_dotenv()
 
 # 환경변수에서 설정값 가져오기
 APP_NAME = os.getenv('APP_NAME', '물류 데이터 통합 시스템')
-APP_VERSION = os.getenv('APP_VERSION', '3.16')
+APP_VERSION = os.getenv('APP_VERSION', '3.19')
 MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', '200'))
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
@@ -1052,9 +1052,10 @@ def main():
     st.header("1️⃣ 플랫폼별 파일 업로드")
     
     # 플랫폼별 탭 생성
-    tab1, tab2, tab3, tab4 = st.tabs(["📦 카페24", "📱 앱", "🛒 쿠팡", "🟢 네이버"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📦 카페24", "📱 앱", "🛒 쿠팡", "🟢 네이버", "✏️ 수동 입력"])
     
     uploaded_files_map = {}
+    manual_orders = []  # 수동 입력 주문 저장
     
     with tab1:
         st.subheader("카페24 주문 파일")
@@ -1118,8 +1119,154 @@ def main():
             if naver_password:
                 st.info(f"🔐 파일 암호가 설정되었습니다")
     
+    with tab5:
+        st.subheader("✏️ 수동 주문 입력")
+        st.info("시딩/CS 주문을 수동으로 입력하세요")
+        
+        # 마스터 파일 확인
+        master_df = st.session_state.get('master_df', None)
+        if master_df is None:
+            st.warning("⚠️ 사이드바에서 마스터 코드 파일을 먼저 업로드해주세요!")
+        else:
+            # 마스터 코드에서 상품 코드 목록 가져오기
+            product_codes = []
+            if '카페24' in master_df.columns:
+                product_codes.extend(master_df['카페24'].dropna().unique().tolist())
+            if '쿠팡' in master_df.columns:
+                product_codes.extend(master_df['쿠팡'].dropna().unique().tolist())
+            if '네이버' in master_df.columns:
+                product_codes.extend(master_df['네이버'].dropna().unique().tolist())
+            if '앱' in master_df.columns:
+                product_codes.extend(master_df['앱'].dropna().unique().tolist())
+            
+            product_codes = sorted(list(set(product_codes)))
+            
+            # 수동 입력 폼
+            with st.form("manual_order_form"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    category = st.selectbox(
+                        "카테고리",
+                        ["시딩", "CS"],
+                        key="manual_category"
+                    )
+                    
+                    recipient_name = st.text_input(
+                        "주문자명",
+                        key="manual_recipient_name"
+                    )
+                    
+                    phone = st.text_input(
+                        "전화번호",
+                        placeholder="010-1234-5678",
+                        key="manual_phone"
+                    )
+                
+                with col2:
+                    address = st.text_area(
+                        "주소",
+                        height=100,
+                        key="manual_address"
+                    )
+                    
+                    product_code = st.selectbox(
+                        "상품 코드",
+                        [""] + product_codes,
+                        key="manual_product_code"
+                    )
+                    
+                    quantity = st.number_input(
+                        "수량",
+                        min_value=1,
+                        value=1,
+                        key="manual_quantity"
+                    )
+                
+                delivery_message = st.text_input(
+                    "배송 메세지 (선택)",
+                    key="manual_delivery_message"
+                )
+                
+                submitted = st.form_submit_button("➕ 주문 추가", type="primary")
+                
+                if submitted:
+                    # 입력 검증
+                    if not recipient_name:
+                        st.error("❌ 주문자명을 입력해주세요")
+                    elif not phone:
+                        st.error("❌ 전화번호를 입력해주세요")
+                    elif not address:
+                        st.error("❌ 주소를 입력해주세요")
+                    elif not product_code:
+                        st.error("❌ 상품 코드를 선택해주세요")
+                    else:
+                        # 주문번호 생성
+                        today = datetime.now().strftime("%Y%m%d")
+                        if category == "시딩":
+                            # 시딩 주문번호: {오늘날짜}_Seed_{고유번호(a부터 시작)}
+                            # 기존 시딩 주문 개수 확인
+                            existing_seeding_count = len([o for o in manual_orders if o.get('카테고리') == '시딩'])
+                            unique_id = chr(ord('a') + existing_seeding_count)
+                            order_number = f"{today}_Seed_{unique_id}"
+                        else:
+                            # CS 주문번호: {오늘날짜}_CS_{고유번호(a부터 시작)}
+                            existing_cs_count = len([o for o in manual_orders if o.get('카테고리') == 'CS'])
+                            unique_id = chr(ord('a') + existing_cs_count)
+                            order_number = f"{today}_CS_{unique_id}"
+                        
+                        # 마스터 코드에서 상품 정보 가져오기
+                        product_info = None
+                        for _, row in master_df.iterrows():
+                            if (str(row.get('카페24', '')) == product_code or 
+                                str(row.get('쿠팡', '')) == product_code or 
+                                str(row.get('네이버', '')) == product_code or 
+                                str(row.get('앱', '')) == product_code):
+                                product_info = row
+                                break
+                        
+                        if product_info is None:
+                            st.error(f"❌ 마스터 코드에서 상품 코드 '{product_code}'를 찾을 수 없습니다")
+                        else:
+                            # 주문 데이터 생성
+                            order = {
+                                '카테고리': category,
+                                '주문번호': order_number,
+                                '주문자명': recipient_name,
+                                '전화번호': phone,
+                                '주소': address,
+                                '상품 코드': product_code,
+                                '상품명': product_info.get('상품명', ''),
+                                '옵션명': product_info.get('옵션명', ''),
+                                '수량': quantity,
+                                '배송 메세지': delivery_message
+                            }
+                            
+                            manual_orders.append(order)
+                            st.session_state['manual_orders'] = manual_orders
+                            st.success(f"✅ 주문이 추가되었습니다! (주문번호: {order_number})")
+                            st.rerun()
+            
+            # 추가된 주문 목록 표시
+            if manual_orders or st.session_state.get('manual_orders'):
+                st.markdown("---")
+                st.subheader("📋 추가된 수동 주문 목록")
+                
+                manual_orders = st.session_state.get('manual_orders', [])
+                manual_df = pd.DataFrame(manual_orders)
+                
+                st.dataframe(manual_df, use_container_width=True)
+                
+                # 삭제 버튼
+                if st.button("🗑️ 모든 수동 주문 삭제", type="secondary"):
+                    st.session_state['manual_orders'] = []
+                    st.rerun()
+    
     # 업로드된 파일이 있는지 확인
-    if not uploaded_files_map:
+    has_uploaded_files = len(uploaded_files_map) > 0
+    has_manual_orders = len(st.session_state.get('manual_orders', [])) > 0
+    
+    if not has_uploaded_files and not has_manual_orders:
         st.info("👆 위 탭에서 플랫폼별 파일을 업로드해주세요")
         return
     
@@ -1135,6 +1282,68 @@ def main():
     
     processed_dfs = []
     file_info = []
+    
+    # 수동 입력 주문 처리
+    manual_orders = st.session_state.get('manual_orders', [])
+    if manual_orders:
+        st.subheader("🖊️ 수동 입력 주문 처리 중...")
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        manual_rows = []
+        for order in manual_orders:
+            row = {
+                '쇼핑몰 코드': 'ONLINE1',
+                '쇼핑몰 이름': order['카테고리'],  # 시딩 or CS
+                '쇼핑몰 묶음 배송 번호': order['주문번호'],
+                '묶음배송유무': '유',
+                '접수일시': today,
+                '결제일시': today,
+                '수취인 상세 주소': '서울시 강남구',
+                '수취인 전화[안심 번호]': order['전화번호'],
+                '수취인 전화번호': order['전화번호'],
+                '수취인 건물 관리번호': '',
+                '주문자 명': order['주문자명'],
+                '주문자 이메일': '',
+                '주문자 전화': order['전화번호'],
+                '주문자 핸드폰': order['전화번호'],
+                '수취인 우편번호': '',
+                '수취인 주소 유형': '지번',
+                '수취인 전화1': order['전화번호'],
+                '수취인 전화2': order['전화번호'],
+                '수취인 전화3': order['전화번호'],
+                '추가 상품 여부': '추가상품',
+                '택배 운임 지불 방식': '신용',
+                '쇼핑몰 주문 라인번호': 1,
+                '결제 금액': '',
+                '참조 번호': '',
+                '요청(희망)배송 일자': today,
+                '쇼핑몰 주문번호': order['주문번호'],
+                '수취인 명': order['주문자명'],
+                '수취인 핸드폰': order['전화번호'],
+                '수취인 기본 주소': order['주소'],
+                '쇼핑몰 상품 코드': order['상품 코드'],
+                '쇼핑몰 상품 이름': order['상품명'],
+                '쇼핑몰 옵션 이름': order['옵션명'],
+                '주문 수량': order['수량'],
+                '배송 메세지': order['배송 메세지'],
+                '플랫폼': order['카테고리'],
+                '매칭 방법': '수동 입력',
+                '확인 필요': 'False'
+            }
+            manual_rows.append(row)
+        
+        manual_df = pd.DataFrame(manual_rows)
+        processed_dfs.append(manual_df)
+        
+        st.success(f"✅ {len(manual_orders)}개의 수동 입력 주문이 처리되었습니다")
+        
+        file_info.append({
+            '플랫폼': '수동입력',
+            '파일명': f'{len(manual_orders)}개 주문',
+            '원본 행 수': len(manual_orders),
+            '매칭 성공': f"{len(manual_orders)}/{len(manual_orders)}",
+            '확인 필요': 0
+        })
     
     with st.spinner("모든 플랫폼 파일을 처리하는 중..."):
         for platform, files in uploaded_files_map.items():
@@ -1200,7 +1409,7 @@ def main():
             matched = (merged_df['매칭 방법'] != '매칭 실패').sum()
             st.metric("매칭 성공", f"{matched}/{len(merged_df)}")
         with col3:
-            need_confirm = merged_df['확인 필요'].sum()
+            need_confirm = (merged_df['확인 필요'] == 'True').sum()
             st.metric("확인 필요", need_confirm)
         with col4:
             platforms = merged_df['쇼핑몰 이름'].nunique()
@@ -1208,10 +1417,15 @@ def main():
         
         # 플랫폼별 통계
         st.subheader("📊 플랫폼별 통계")
-        platform_stats = merged_df.groupby('쇼핑몰 이름').agg({
+        
+        # 확인 필요 항목 카운트를 위한 임시 컬럼 생성
+        merged_df_temp = merged_df.copy()
+        merged_df_temp['확인 필요_count'] = (merged_df_temp['확인 필요'] == 'True').astype(int)
+        
+        platform_stats = merged_df_temp.groupby('쇼핑몰 이름').agg({
             '쇼핑몰 주문번호': 'count',
-            '확인 필요': 'sum'
-        }).rename(columns={'쇼핑몰 주문번호': '주문 수', '확인 필요': '확인 필요 항목'})
+            '확인 필요_count': 'sum'
+        }).rename(columns={'쇼핑몰 주문번호': '주문 수', '확인 필요_count': '확인 필요 항목'})
         st.dataframe(platform_stats, use_container_width=True)
         
         # 매칭 방법별 통계
