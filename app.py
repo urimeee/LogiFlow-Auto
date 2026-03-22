@@ -1243,26 +1243,26 @@ def main():
                     
                     st.success(f"✅ {len(added_orders)}개 주문이 추가되었습니다!")
                     st.rerun()
+        
+        # 추가된 주문 목록 표시 (폼 바깥)
+        if st.session_state.get('manual_orders'):
+            st.markdown("---")
+            st.subheader("📋 추가된 수동 주문 목록")
             
-            # 추가된 주문 목록 표시
-            if st.session_state.get('manual_orders'):
-                st.markdown("---")
-                st.subheader("📋 추가된 수동 주문 목록")
-                
-                manual_orders = st.session_state.get('manual_orders', [])
-                manual_df = pd.DataFrame(manual_orders)
-                
-                # 주요 컬럼만 표시
-                display_cols = ['카테고리', '주문번호', '쇼핑몰 상품 코드', '수취인', '전화번호', 
-                               '쇼핑몰 상품명', '수량']
-                available_cols = [col for col in display_cols if col in manual_df.columns]
-                
-                st.dataframe(manual_df[available_cols], use_container_width=True)
-                
-                # 삭제 버튼
-                if st.button("🗑️ 모든 수동 주문 삭제", type="secondary"):
-                    st.session_state['manual_orders'] = []
-                    st.rerun()
+            manual_orders = st.session_state.get('manual_orders', [])
+            manual_df = pd.DataFrame(manual_orders)
+            
+            # 주요 컬럼만 표시
+            display_cols = ['카테고리', '주문번호', '쇼핑몰 상품 코드', '수취인', '전화번호', 
+                           '쇼핑몰 상품명', '수량']
+            available_cols = [col for col in display_cols if col in manual_df.columns]
+            
+            st.dataframe(manual_df[available_cols], use_container_width=True)
+            
+            # 삭제 버튼
+            if st.button("🗑️ 모든 수동 주문 삭제", type="secondary"):
+                st.session_state['manual_orders'] = []
+                st.rerun()
     
     # 업로드된 파일이 있는지 확인
     has_uploaded_files = len(uploaded_files_map) > 0
