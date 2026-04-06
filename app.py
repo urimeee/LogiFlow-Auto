@@ -1052,7 +1052,7 @@ def main():
     st.header("1️⃣ 플랫폼별 파일 업로드")
     
     # 플랫폼별 탭 생성
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📦 카페24", "📱 앱", "🛒 쿠팡", "🟢 네이버", "✏️ 수동 입력"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📦 카페24", "📱 앱", "🛒 쿠팡", "🟢 네이버", "✏️ 수동 입력", "📮 쿠팡 운송장"])
     
     uploaded_files_map = {}
     manual_orders = []  # 수동 입력 주문 저장
@@ -1263,6 +1263,147 @@ def main():
             if st.button("🗑️ 모든 수동 주문 삭제", type="secondary"):
                 st.session_state['manual_orders'] = []
                 st.rerun()
+    
+    with tab6:
+        st.subheader("📮 쿠팡 운송장 번호 입력")
+        st.info("DeliveryList 파일에 운송장 번호를 입력하여 쿠팡 업로드용 파일을 생성합니다")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### 1️⃣ DeliveryList 파일 업로드")
+            delivery_file = st.file_uploader(
+                "DeliveryList로 시작하는 XLSX 파일",
+                type=['xlsx'],
+                key="coupang_delivery_file",
+                help="쿠팡에서 다운로드한 DeliveryList 파일"
+            )
+        
+        with col2:
+            st.markdown("#### 2️⃣ 운송장 번호 입력")
+            tracking_numbers_text = st.text_area(
+                "운송장번호와 수취인 이름 (줄바꿈으로 구분)",
+                placeholder="256390456066   류지영\n256390456070   이지영\n256390456081   안민영",
+                height=300,
+                key="tracking_numbers_input",
+                help="각 줄에 '운송장번호   수취인이름' 형식으로 입력하세요"
+            )
+        
+        if delivery_file and tracking_numbers_text:
+            if st.button("🚀 운송장 번호 매칭 및 파일 생성", type="primary"):
+                try:
+                    # DeliveryList 파일 읽기
+                    df_delivery = pd.read_excel(delivery_file)
+                    st.success(f"✅ DeliveryList 파일 로드 완료: {len(df_delivery)}개 주문")
+                    
+                    # 운송장 번호 파싱
+                    tracking_data = []
+                    for line in tracking_numbers_text.strip().split('\n'):
+                        if line.strip():
+                            parts = line.strip().split()
+                            if len(parts) >= 2:
+                                tracking_num = parts[0].strip()
+                                recipient_name = ' '.join(parts[1:]).strip()
+                                tracking_data.append({
+                                    '운송장번호': tracking_num,
+                                    '수취인이름': recipient_name
+                                })
+                    
+                    if not tracking_data:
+                        st.error("❌ 운송장 번호 데이터를 파싱할 수 없습니다")
+                    else:
+                        st.info(f"📦 파싱된 운송장 번호: {len(tracking_data)}개")
+                        
+                        # 수취인 이름으로 매칭
+                        matched_count = 0
+                        unmatched_recipients = []
+                        
+                        for tracking_info in tracking_data:
+                            recipient = tracking_info['수취인이름']
+                            tracking_num = tracking_info['운송장번호']
+                            
+                            # DeliveryList에서 수취인 이름으로 찾기
+                            mask = df_delivery['수취인이름'] == recipient
+                            matched_rows = df_delivery[mask]
+                            
+                            if len(matched_rows) > 0:
+                                # 운송장 번호 입력
+                                df_delivery.loc[mask, '운송장번호'] = int(tracking_num)
+                                # 분리배송 Y/N을 'N'으로 설정
+                                df_delivery.loc[mask, '분리배송 Y/N'] = 'N'
+                                matched_count += len(matched_rows)
+                            else:
+                                unmatched_recipients.append(recipient)
+                        
+                        # 결과 표시
+                        st.markdown("---")
+                        st.subheader("📊 매칭 결과")
+                        
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            st.metric("입력된 운송장 수", len(tracking_data))
+                        with col_b:
+                            st.metric("매칭 성공", matched_count)
+                        with col_c:
+                            st.metric("매칭 실패", len(unmatched_recipients))
+                        
+                        if unmatched_recipients:
+                            st.warning("⚠️ 매칭되지 않은 수취인:")
+                            for name in unmatched_recipients:
+                                st.write(f"  - {name}")
+                        
+                        # 번호 컬럼을 등차수열로 재설정
+                        df_delivery['번호'] = range(1, len(df_delivery) + 1)
+                        
+                        # 필수 컬럼 검증
+                        required_cols = ['번호', '주문번호', '택배사', '운송장번호', '분리배송 Y/N']
+                        missing_cols = [col for col in required_cols if col not in df_delivery.columns]
+                        
+                        if missing_cols:
+                            st.error(f"❌ 필수 컬럼 누락: {', '.join(missing_cols)}")
+                        else:
+                            # 운송장 번호가 있는 행만 필터링
+                            df_output = df_delivery[df_delivery['운송장번호'].notna()].copy()
+                            
+                            st.success(f"✅ 출력 파일: {len(df_output)}개 주문 (운송장 번호 입력 완료)")
+                            
+                            # 미리보기
+                            st.markdown("---")
+                            st.subheader("📋 출력 데이터 미리보기")
+                            preview_cols = ['번호', '묶음배송번호', '주문번호', '택배사', '운송장번호', '분리배송 Y/N', '수취인이름']
+                            available_preview_cols = [col for col in preview_cols if col in df_output.columns]
+                            st.dataframe(df_output[available_preview_cols].head(20), use_container_width=True)
+                            
+                            # Excel 파일 생성
+                            from io import BytesIO
+                            output = BytesIO()
+                            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                                df_output.to_excel(writer, index=False, sheet_name='Sheet1')
+                            excel_data = output.getvalue()
+                            
+                            # 다운로드 버튼
+                            today = datetime.now().strftime("%Y%m%d")
+                            filename = f"쿠팡_운송장입력_{today}.xlsx"
+                            
+                            st.download_button(
+                                label="📥 쿠팡 업로드용 파일 다운로드",
+                                data=excel_data,
+                                file_name=filename,
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                type="primary"
+                            )
+                            
+                            st.info("💡 다운로드한 파일을 쿠팡 판매자 시스템에 업로드하세요")
+                
+                except Exception as e:
+                    st.error(f"❌ 처리 중 오류 발생: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
+        
+        elif not delivery_file:
+            st.warning("⚠️ DeliveryList 파일을 업로드해주세요")
+        elif not tracking_numbers_text:
+            st.warning("⚠️ 운송장 번호를 입력해주세요")
     
     # 업로드된 파일이 있는지 확인
     has_uploaded_files = len(uploaded_files_map) > 0
