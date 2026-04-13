@@ -1121,18 +1121,122 @@ def main():
     
     with tab5:
         st.subheader("✏️ 수동 주문 입력")
-        st.info("시딩/CS 주문을 수동으로 입력하세요 (한 번에 여러 주문 입력 가능)")
+        st.info("시딩/CS/체험단/재고조정 주문을 수동으로 입력하세요 (직접 입력 또는 엑셀 업로드)")
         
-        # 수동 입력 폼
-        with st.form("manual_order_form"):
-            col1, col2 = st.columns(2)
+        # 입력 방식 선택
+        input_method = st.radio(
+            "입력 방식 선택",
+            ["📝 직접 입력", "📄 엑셀 업로드"],
+            horizontal=True,
+            key="manual_input_method"
+        )
+        
+        if input_method == "📄 엑셀 업로드":
+            st.markdown("---")
+            st.markdown("#### 📄 엑셀 파일 업로드 방식")
             
-            with col1:
-                category = st.selectbox(
+            col_upload1, col_upload2 = st.columns([2, 1])
+            
+            with col_upload1:
+                manual_excel_file = st.file_uploader(
+                    "수기입력 서식 파일을 업로드하세요",
+                    type=['xlsx', 'xls'],
+                    key="manual_excel_file",
+                    help="필수 컬럼: 이름, 전화번호, 배송주소, 물품"
+                )
+            
+            with col_upload2:
+                excel_category = st.selectbox(
                     "카테고리",
-                    ["Seed", "CS"],
+                    ["Seed", "CS", "체험단", "재고조정"],
+                    key="excel_category",
+                    help="시딩, CS, 체험단, 재고조정 중 선택"
+                )
+            
+            if manual_excel_file:
+                if st.button("📥 엑셀 파일 처리", type="primary", key="process_excel_btn"):
+                    try:
+                        # 엑셀 파일 읽기
+                        df_excel = pd.read_excel(manual_excel_file)
+                        
+                        # 컬럼명 정리 (줄바꿈 제거)
+                        df_excel.columns = [col.replace('\n', '').replace('(교환 배송지 변경시 작성)', '').strip() 
+                                          for col in df_excel.columns]
+                        
+                        st.success(f"✅ 엑셀 파일 로드 완료: {len(df_excel)}개 주문")
+                        
+                        # 필수 컬럼 확인
+                        required_cols = ['이름', '전화번호', '배송주소', '물품']
+                        missing_cols = [col for col in required_cols if col not in df_excel.columns]
+                        
+                        if missing_cols:
+                            st.error(f"❌ 필수 컬럼 누락: {', '.join(missing_cols)}")
+                        else:
+                            # 오늘 날짜
+                            today = datetime.now().strftime("%Y%m%d")
+                            
+                            # 기존 주문 개수 확인
+                            existing_orders = st.session_state.get('manual_orders', [])
+                            existing_count = len([o for o in existing_orders if o.get('카테고리') == excel_category])
+                            
+                            # 엑셀 데이터를 주문으로 변환
+                            added_orders = []
+                            for idx, row in df_excel.iterrows():
+                                # 고유번호 생성 (a, b, c, ...)
+                                unique_id = chr(ord('a') + existing_count + idx)
+                                
+                                # 주문번호 생성: {오늘날짜}_{카테고리}_{고유번호}
+                                order_number = f"{today}_{excel_category}_{unique_id}"
+                                
+                                # 쇼핑몰 상품 코드 생성: {오늘날짜}_{카테고리}_{고유번호}
+                                shop_product_code = f"{today}_{excel_category}_{unique_id}"
+                                
+                                # 물품명 (쇼핑몰 상품명/옵션명으로 사용)
+                                product_name = str(row['물품']).strip()
+                                
+                                # 주문 데이터 생성
+                                order = {
+                                    '카테고리': excel_category,
+                                    '주문번호': order_number,
+                                    '쇼핑몰 상품 코드': shop_product_code,
+                                    '수취인': str(row['이름']).strip(),
+                                    '전화번호': str(row['전화번호']).strip(),
+                                    '주소': str(row['배송주소']).strip(),
+                                    '쇼핑몰 상품명': product_name,
+                                    '쇼핑몰 옵션명': product_name,
+                                    '수량': 1,  # 항상 1
+                                    '배송 메시지': ''
+                                }
+                                
+                                added_orders.append(order)
+                            
+                            # 세션 상태에 추가
+                            if 'manual_orders' not in st.session_state:
+                                st.session_state['manual_orders'] = []
+                            st.session_state['manual_orders'].extend(added_orders)
+                            
+                            st.success(f"✅ {len(added_orders)}개 주문이 추가되었습니다!")
+                            st.rerun()
+                    
+                    except Exception as e:
+                        st.error(f"❌ 파일 처리 중 오류 발생: {str(e)}")
+                        import traceback
+                        st.code(traceback.format_exc())
+        
+        else:  # 직접 입력 방식
+            st.markdown("---")
+            st.markdown("#### 📝 직접 입력 방식")
+            
+            # 수동 입력 폼
+            with st.form("manual_order_form"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    category = st.selectbox(
+                        "카테고리",
+                        ["Seed", "CS", "체험단", "재고조정"],
                     key="manual_category",
-                    help="Seed 또는 CS 선택"
+                    help="시딩, CS, 체험단, 재고조정 중 선택"
                 )
                 
                 recipient_names = st.text_area(
