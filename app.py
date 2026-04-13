@@ -1235,118 +1235,118 @@ def main():
                     category = st.selectbox(
                         "카테고리",
                         ["Seed", "CS", "체험단", "재고조정"],
-                    key="manual_category",
-                    help="시딩, CS, 체험단, 재고조정 중 선택"
-                )
-                
-                recipient_names = st.text_area(
-                    "수취인 이름 (여러 명인 경우 줄바꿈으로 구분)",
-                    placeholder="김유림\n김종국\n이효리",
-                    height=120,
-                    key="manual_recipient_names",
-                    help="여러 명의 수취인을 입력할 경우 각 줄에 한 명씩 입력하세요"
-                )
-                
-                phones = st.text_area(
-                    "전화번호 (여러 개인 경우 줄바꿈으로 구분)",
-                    placeholder="010-1234-5678\n010-2345-6789\n010-3456-7890",
-                    height=120,
-                    key="manual_phones",
-                    help="수취인 수만큼 전화번호를 입력하세요"
-                )
-            
-            with col2:
-                addresses = st.text_area(
-                    "주소 (여러 개인 경우 줄바꿈으로 구분)",
-                    placeholder="서울시 강남구 테헤란로 123\n경기도 성남시 분당구 판교로 456\n부산시 해운대구 센텀대로 789",
-                    height=120,
-                    key="manual_addresses",
-                    help="수취인 수만큼 주소를 입력하세요"
-                )
-                
-                product_name = st.text_input(
-                    "상품명 (쇼핑몰 상품명/옵션명으로 사용됨)",
-                    placeholder="예: 프리미엄 스킨케어 세트",
-                    key="manual_product_name",
-                    help="입력한 상품명이 그대로 쇼핑몰 상품 이름과 옵션 이름으로 사용됩니다"
-                )
-                
-                quantity = st.number_input(
-                    "수량",
-                    min_value=1,
-                    value=1,
-                    key="manual_quantity"
-                )
-            
-            delivery_message = st.text_input(
-                "배송 메시지 (선택)",
-                key="manual_delivery_message"
-            )
-            
-            submitted = st.form_submit_button("➕ 주문 추가", type="primary")
-            
-            if submitted:
-                # 입력값 파싱
-                recipient_list = [name.strip() for name in recipient_names.split('\n') if name.strip()]
-                phone_list = [phone.strip() for phone in phones.split('\n') if phone.strip()]
-                address_list = [addr.strip() for addr in addresses.split('\n') if addr.strip()]
-                
-                # 입력 검증
-                if not recipient_list:
-                    st.error("❌ 수취인 이름을 입력해주세요")
-                elif not phone_list:
-                    st.error("❌ 전화번호를 입력해주세요")
-                elif not address_list:
-                    st.error("❌ 주소를 입력해주세요")
-                elif not product_name:
-                    st.error("❌ 상품명을 입력해주세요")
-                elif len(recipient_list) != len(phone_list):
-                    st.error(f"❌ 수취인({len(recipient_list)}명)과 전화번호({len(phone_list)}개)의 개수가 일치하지 않습니다")
-                elif len(recipient_list) != len(address_list):
-                    st.error(f"❌ 수취인({len(recipient_list)}명)과 주소({len(address_list)}개)의 개수가 일치하지 않습니다")
-                else:
-                    # 오늘 날짜
-                    today = datetime.now().strftime("%Y%m%d")
+                        key="manual_category",
+                        help="시딩, CS, 체험단, 재고조정 중 선택"
+                    )
                     
-                    # 기존 주문 개수 확인 (해당 카테고리)
-                    existing_orders = st.session_state.get('manual_orders', [])
-                    existing_count = len([o for o in existing_orders if o.get('카테고리') == category])
+                    recipient_names = st.text_area(
+                        "수취인 이름 (여러 명인 경우 줄바꿈으로 구분)",
+                        placeholder="김유림\n김종국\n이효리",
+                        height=120,
+                        key="manual_recipient_names",
+                        help="여러 명의 수취인을 입력할 경우 각 줄에 한 명씩 입력하세요"
+                    )
                     
-                    # 여러 주문 생성
-                    added_orders = []
-                    for idx, (recipient, phone, address) in enumerate(zip(recipient_list, phone_list, address_list)):
-                        # 고유번호 생성 (a, b, c, ...)
-                        unique_id = chr(ord('a') + existing_count + idx)
-                        
-                        # 주문번호 생성: {오늘날짜}_{Seed/CS}_{고유번호}
-                        order_number = f"{today}_{category}_{unique_id}"
-                        
-                        # 쇼핑몰 상품 코드 생성: {오늘날짜}_{Seed/CS}_{고유번호}
-                        shop_product_code = f"{today}_{category}_{unique_id}"
-                        
-                        # 주문 데이터 생성
-                        order = {
-                            '카테고리': category,
-                            '주문번호': order_number,
-                            '쇼핑몰 상품 코드': shop_product_code,
-                            '수취인': recipient,
-                            '전화번호': phone,
-                            '주소': address,
-                            '쇼핑몰 상품명': product_name,
-                            '쇼핑몰 옵션명': product_name,
-                            '수량': quantity,
-                            '배송 메시지': delivery_message
-                        }
-                        
-                        added_orders.append(order)
+                    phones = st.text_area(
+                        "전화번호 (여러 개인 경우 줄바꿈으로 구분)",
+                        placeholder="010-1234-5678\n010-2345-6789\n010-3456-7890",
+                        height=120,
+                        key="manual_phones",
+                        help="수취인 수만큼 전화번호를 입력하세요"
+                    )
+                
+                with col2:
+                    addresses = st.text_area(
+                        "주소 (여러 개인 경우 줄바꿈으로 구분)",
+                        placeholder="서울시 강남구 테헤란로 123\n경기도 성남시 분당구 판교로 456\n부산시 해운대구 센텀대로 789",
+                        height=120,
+                        key="manual_addresses",
+                        help="수취인 수만큼 주소를 입력하세요"
+                    )
                     
-                    # 세션 상태에 추가
-                    if 'manual_orders' not in st.session_state:
-                        st.session_state['manual_orders'] = []
-                    st.session_state['manual_orders'].extend(added_orders)
+                    product_name = st.text_input(
+                        "상품명 (쇼핑몰 상품명/옵션명으로 사용됨)",
+                        placeholder="예: 프리미엄 스킨케어 세트",
+                        key="manual_product_name",
+                        help="입력한 상품명이 그대로 쇼핑몰 상품 이름과 옵션 이름으로 사용됩니다"
+                    )
                     
-                    st.success(f"✅ {len(added_orders)}개 주문이 추가되었습니다!")
-                    st.rerun()
+                    quantity = st.number_input(
+                        "수량",
+                        min_value=1,
+                        value=1,
+                        key="manual_quantity"
+                    )
+                
+                delivery_message = st.text_input(
+                    "배송 메시지 (선택)",
+                    key="manual_delivery_message"
+                )
+                
+                submitted = st.form_submit_button("➕ 주문 추가", type="primary")
+                
+                if submitted:
+                    # 입력값 파싱
+                    recipient_list = [name.strip() for name in recipient_names.split('\n') if name.strip()]
+                    phone_list = [phone.strip() for phone in phones.split('\n') if phone.strip()]
+                    address_list = [addr.strip() for addr in addresses.split('\n') if addr.strip()]
+                    
+                    # 입력 검증
+                    if not recipient_list:
+                        st.error("❌ 수취인 이름을 입력해주세요")
+                    elif not phone_list:
+                        st.error("❌ 전화번호를 입력해주세요")
+                    elif not address_list:
+                        st.error("❌ 주소를 입력해주세요")
+                    elif not product_name:
+                        st.error("❌ 상품명을 입력해주세요")
+                    elif len(recipient_list) != len(phone_list):
+                        st.error(f"❌ 수취인({len(recipient_list)}명)과 전화번호({len(phone_list)}개)의 개수가 일치하지 않습니다")
+                    elif len(recipient_list) != len(address_list):
+                        st.error(f"❌ 수취인({len(recipient_list)}명)과 주소({len(address_list)}개)의 개수가 일치하지 않습니다")
+                    else:
+                        # 오늘 날짜
+                        today = datetime.now().strftime("%Y%m%d")
+                        
+                        # 기존 주문 개수 확인 (해당 카테고리)
+                        existing_orders = st.session_state.get('manual_orders', [])
+                        existing_count = len([o for o in existing_orders if o.get('카테고리') == category])
+                        
+                        # 여러 주문 생성
+                        added_orders = []
+                        for idx, (recipient, phone, address) in enumerate(zip(recipient_list, phone_list, address_list)):
+                            # 고유번호 생성 (a, b, c, ...)
+                            unique_id = chr(ord('a') + existing_count + idx)
+                            
+                            # 주문번호 생성: {오늘날짜}_{Seed/CS}_{고유번호}
+                            order_number = f"{today}_{category}_{unique_id}"
+                            
+                            # 쇼핑몰 상품 코드 생성: {오늘날짜}_{Seed/CS}_{고유번호}
+                            shop_product_code = f"{today}_{category}_{unique_id}"
+                            
+                            # 주문 데이터 생성
+                            order = {
+                                '카테고리': category,
+                                '주문번호': order_number,
+                                '쇼핑몰 상품 코드': shop_product_code,
+                                '수취인': recipient,
+                                '전화번호': phone,
+                                '주소': address,
+                                '쇼핑몰 상품명': product_name,
+                                '쇼핑몰 옵션명': product_name,
+                                '수량': quantity,
+                                '배송 메시지': delivery_message
+                            }
+                            
+                            added_orders.append(order)
+                        
+                        # 세션 상태에 추가
+                        if 'manual_orders' not in st.session_state:
+                            st.session_state['manual_orders'] = []
+                        st.session_state['manual_orders'].extend(added_orders)
+                        
+                        st.success(f"✅ {len(added_orders)}개 주문이 추가되었습니다!")
+                        st.rerun()
         
         # 추가된 주문 목록 표시 (폼 바깥)
         if st.session_state.get('manual_orders'):
