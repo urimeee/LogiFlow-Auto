@@ -1557,9 +1557,9 @@ def main():
         st.info("👆 위 탭에서 플랫폼별 파일을 업로드해주세요")
         return
     
-    # 마스터 파일 확인
+    # 마스터 파일 확인 (수동 입력만 있는 경우 마스터 파일 불필요)
     master_df = st.session_state.get('master_df', None)
-    if master_df is None:
+    if master_df is None and has_uploaded_files:
         st.error("❌ 사이드바에서 마스터 코드 파일을 먼저 업로드해주세요!")
         return
     
