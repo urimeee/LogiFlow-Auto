@@ -1155,23 +1155,13 @@ def main():
                 template_df.to_excel(writer, index=False, sheet_name='수기입력')
             template_excel_data = output.getvalue()
             
-            col_download1, col_download2, col_download3 = st.columns([1, 1, 2])
-            
-            with col_download1:
-                st.download_button(
-                    label="📥 서식 다운로드 (Excel)",
-                    data=template_excel_data,
-                    file_name="수기입력_서식.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    type="secondary"
-                )
-            
-            with col_download2:
-                st.markdown("**필수 컬럼:**")
-                st.write("• 이름")
-                st.write("• 전화번호")
-                st.write("• 배송주소")
-                st.write("• 물품")
+            st.download_button(
+                label="📥 서식 다운로드 (Excel)",
+                data=template_excel_data,
+                file_name="수기입력_서식.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="secondary"
+            )
             
             st.markdown("---")
             
