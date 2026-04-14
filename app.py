@@ -1135,6 +1135,46 @@ def main():
             st.markdown("---")
             st.markdown("#### 📄 엑셀 파일 업로드 방식")
             
+            # 서식 파일 다운로드 버튼
+            st.markdown("##### 📥 서식 파일 다운로드")
+            st.info("💡 아래 서식 파일을 다운로드하여 작성 후 업로드하세요")
+            
+            # 서식 파일 생성
+            template_data = {
+                '이름': ['김지현', '엄정해', ''],
+                '전화번호': ['010-1234-5678', '010-2345-6789', ''],
+                '배송주소': ['서울 강남구 테헤란로 123', '부산 해운대구 센텀대로 456', ''],
+                '물품': ['에바 아이스', '딥 플럼', '']
+            }
+            template_df = pd.DataFrame(template_data)
+            
+            # Excel 파일로 변환
+            from io import BytesIO
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                template_df.to_excel(writer, index=False, sheet_name='수기입력')
+            template_excel_data = output.getvalue()
+            
+            col_download1, col_download2, col_download3 = st.columns([1, 1, 2])
+            
+            with col_download1:
+                st.download_button(
+                    label="📥 서식 다운로드 (Excel)",
+                    data=template_excel_data,
+                    file_name="수기입력_서식.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="secondary"
+                )
+            
+            with col_download2:
+                st.markdown("**필수 컬럼:**")
+                st.write("• 이름")
+                st.write("• 전화번호")
+                st.write("• 배송주소")
+                st.write("• 물품")
+            
+            st.markdown("---")
+            
             col_upload1, col_upload2 = st.columns([2, 1])
             
             with col_upload1:
